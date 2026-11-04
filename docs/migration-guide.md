@@ -27,8 +27,8 @@
 ---
 
 ## 2. Strict Invariants Checklist
-- [ ] **Zero-I/O**: No `tokio`, no network/file I/O, no `Utc::now()` in `src/`.
-- [ ] **Zero Inline Tests**: `grep -rn "#\[cfg(test)\]" src/` must return 0 matches.
+- [x] **Zero-I/O**: No `tokio`, no network/file I/O, no `Utc::now()` in `src/`.
+- [x] **Zero Inline Tests**: `grep -rn "#\[cfg(test)\]" src/` must return 0 matches.
 
 ## 3. Verification Commands
 ```bash
