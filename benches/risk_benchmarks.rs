@@ -91,8 +91,10 @@ fn bench_check_order_with_freeze_limit(c: &mut Criterion) {
 
 /// Benchmark: Order check with notional limit.
 fn bench_check_order_with_notional_limit(c: &mut Criterion) {
-    let mut limits = RiskLimits::default();
-    limits.max_notional_per_order = Some(rust_decimal::Decimal::from(2500000));
+    let limits = RiskLimits {
+        max_notional_per_order: Some(rust_decimal::Decimal::from(2_500_000)),
+        ..Default::default()
+    };
     let mut engine = RiskEngine::new(limits, OtrConfig::default());
     engine.register_algo("bench-algo");
     let req = OrderRequest::new(

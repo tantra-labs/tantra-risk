@@ -36,7 +36,7 @@ fn arb_instrument_id() -> impl Strategy<Value = InstrumentId> {
 
 /// Arbitrary quantity generator (positive).
 fn arb_quantity() -> impl Strategy<Value = Quantity> {
-    (1u64..10000u64).prop_map(|q| Quantity::from_u64(q))
+    (1u64..10000u64).prop_map(Quantity::from_u64)
 }
 
 // Property: No order check should ever panic, regardless of input.
@@ -223,8 +223,10 @@ proptest! {
         instrument in arb_instrument_id(),
         algo_id in "[a-z0-9-]{1,20}",
     ) {
-        let mut limits = RiskLimits::default();
-        limits.max_daily_loss = Some(Decimal::from(100000)); // ₹1,00,000
+        let limits = RiskLimits {
+            max_daily_loss: Some(Decimal::from(100000)), // ₹1,00,000
+            ..Default::default()
+        };
         let mut engine = RiskEngine::new(limits, OtrConfig::default());
         engine.register_algo(algo_id.clone());
 
@@ -410,7 +412,7 @@ proptest! {
             prop_assert_eq!(slices, 1);
         } else {
             // Ceiling of qty/freeze
-            let expected = (qty + freeze - 1) / freeze;
+            let expected = qty.div_ceil(freeze);
             prop_assert_eq!(slices as u64, expected);
         }
     }

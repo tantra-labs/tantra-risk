@@ -22,10 +22,7 @@ fn test_suspend_and_reactivate() {
     registry.register("algo-1");
 
     registry.suspend("algo-1", "SEBI regulatory query");
-    assert!(matches!(
-        registry.is_registered_and_active("algo-1"),
-        Err(_)
-    ));
+    assert!(registry.is_registered_and_active("algo-1").is_err());
 
     registry.reactivate("algo-1");
     assert!(registry.is_registered_and_active("algo-1").is_ok());
