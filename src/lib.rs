@@ -1,4 +1,4 @@
-//! # 本場・門 vyapaar-risk
+//! # व्यापार・門 vyapaar-risk
 //!
 //! Synchronous, deterministic pre-trade risk engine and regulatory compliance validator for Indian equities (NSE / BSE / NFO).
 //!
@@ -18,6 +18,13 @@
 //! - Maximum notional, position size, exchange freeze limit slicing, and event-time rate limiting
 //! - Dynamic position sizing risk budget gate ([`validate_sizing_request`])
 //! - Institutional Prometheus metrics ([`RiskMetrics`]) and OpenTelemetry W3C distributed trace context propagation
+
+// `RiskRefusal` deliberately returns large aggregate payloads (e.g. the embedded
+// `SizingRiskRefusal` breakdown) by value so the refusal reason is fully
+// diagnosable on the hot path. Boxing the variants would alter the public
+// refusal API and every pattern-match in downstream gates, so the
+// `clippy::result_large_err` lint is consciously accepted at the crate level.
+#![allow(clippy::result_large_err)]
 
 pub mod algo_registry;
 pub mod engine;

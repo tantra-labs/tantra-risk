@@ -367,7 +367,7 @@ impl RiskEngine {
             } => {
                 // Modifications are recorded as order operations
                 let _ = instrument;
-                self.record_cancellation(&algo_id, now);
+                self.record_cancellation(algo_id, now);
                 Ok(())
             }
         }

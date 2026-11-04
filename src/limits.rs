@@ -95,7 +95,7 @@ impl RiskLimits {
                 return false;
             }
         }
-        for (_, qty) in &self.freeze_limits {
+        for qty in self.freeze_limits.values() {
             if !qty.is_positive() {
                 return false;
             }
