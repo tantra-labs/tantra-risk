@@ -24,8 +24,8 @@
 * **Zero-I/O Domain Purity**: `RiskEngine` is pure and synchronous. No async/await, no network calls, no disk writes in validation paths.
 * **Zero Floats Policy**: Strict decimal arithmetic via `rust_decimal::Decimal`.
 * **TDD & Parallel Test Directory Rule (MANDATORY)**:
-  - All unit, integration, and benchmark tests live in `tests/` parallel to `src/`.
-  - **STRICTLY FORBIDDEN**: In-file `#[test]` blocks inside `src/`.
+  - All unit, integration, and benchmark tests live in `tests/` parallel to `src/`, or in a `src/tests/` module directory.
+  - **STRICTLY FORBIDDEN**: In-file `#[test]` blocks inside production `src/` files.
   - Extensive property tests (`proptest`) for OTR ratio edge cases, price band boundaries, and freeze bounds.
 
 ---
