@@ -1,12 +1,11 @@
-# `vyapaar-risk` — Subagent Migration & DDD Refactoring Guide
+# `vyapaar-risk` — Historical Migration Map (honba-mon → vyapaar-risk)
 
 > **Tier**: Tier 1A (Depends only on `vyapaar-core`)
 > **Source**: `/home/pmallapp/Devel/Finance/honba-workspace/honba-mon`
 > **Target**: `/home/pmallapp/Devel/Finance/vyapaar-labs/vyapaar-risk`
+> **Status**: Migration complete (all modules ported).
 
----
-
-## 1. File-by-File Migration Map
+## File-by-File Migration Map
 
 | Source Path (`honba-mon/`) | Target Path (`vyapaar-risk/`) | Action & DDD Refactoring Required |
 | :--- | :--- | :--- |
@@ -22,18 +21,32 @@
 | `src/refusal.rs` | `src/refusal.rs` | Replace `honba_core` with `vyapaar_core`. |
 | `src/sizing_gate.rs` | `src/sizing_gate.rs` | Replace `honba_core` with `vyapaar_core`. |
 | `src/state.rs` | `src/state.rs` | Replace `honba_core` with `vyapaar_core`. |
+| `src/tool_hints.rs` | `src/tool_hints.rs` | New module: `ToolRiskHint`, `risk_classification` (MCP gateway integration). |
 | `tests/*.rs` | `tests/*.rs` | Copy all test files from `honba-mon/tests/` into `vyapaar-risk/tests/`, replacing `honba_mon` → `vyapaar_risk` and `honba_core` → `vyapaar_core`. Extract any inline `#[cfg(test)]` from `src/*.rs` into `tests/`. |
 
----
+## Strict Invariants Checklist
 
-## 2. Strict Invariants Checklist
 - [x] **Zero-I/O**: No `tokio`, no network/file I/O, no `Utc::now()` in `src/`.
 - [x] **Zero Inline Tests**: `grep -rn "#\[cfg(test)\]" src/` must return 0 matches.
+- [x] **Zero Floats**: All notional, price-band, loss, and OTR calculations use `rust_decimal::Decimal`.
+- [x] **Latency SLO**: `p99.99 < 15µs` via zero-allocation `RiskEngine::check_order_fast`.
 
-## 3. Verification Commands
+## Verification Commands
+
 ```bash
 cd /home/pmallapp/Devel/Finance/vyapaar-labs/vyapaar-risk
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
+
+## Migration Execution Status
+
+| Milestone | Status |
+|-----------|--------|
+| Module 1: Core Risk Engine & SEBI Algo Registry | Complete |
+| Module 2: Dynamic Sizing Gate & Observability Metrics | Complete |
+| Module 3: Property-Based & Latency Verification | Complete |
+| `cargo fmt --check` | Clean |
+| `cargo clippy --all-targets -- -D warnings` | Clean |
+| `cargo test` | Passing |
