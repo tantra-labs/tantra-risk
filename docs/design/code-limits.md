@@ -1,6 +1,6 @@
-# `vyapaar-risk` — Risk Limits Reference
+# `tantra-risk` — Risk Limits Reference
 
-Documents `vyapaar-risk/src/limits.rs`: configurable hard risk limits applied synchronously
+Documents `tantra-risk/src/limits.rs`: configurable hard risk limits applied synchronously
 to all outgoing orders and decisions.
 
 ## `OrderRateLimit`
@@ -36,9 +36,9 @@ Structural sanity check (`-> bool`): rejects `max_notional_per_order <= 0`, zero
 `OrderRateLimit` (`max_orders == 0 || window_ms == 0`), `price_collar_bps == 0`, and
 non-positive freeze quantities.
 
-## Legacy Field Aliases (from deprecated `vyapaar-ledger::RiskLimits`)
+## Legacy Field Aliases (from deprecated `tantra-ledger::RiskLimits`)
 
-| Legacy Field (`vyapaar-ledger`) | Canonical Field (`vyapaar-risk`) |
+| Legacy Field (`tantra-ledger`) | Canonical Field (`tantra-risk`) |
 |--------------------------------|----------------------------------|
 | `max_notional` (f64) | `max_notional_per_order` (Decimal) |
 | `max_participation` (f64) | `max_quantity_per_order` (Quantity) |
@@ -56,6 +56,6 @@ All notional, price, quantity, and loss values use `rust_decimal::Decimal`.
 
 ## Related
 
-- `vyapaar-risk/src/engine.rs` — `RiskEngine` applies `RiskLimits` on every check.
-- `vyapaar-core/src/types.rs` — `Price`, `Quantity`, `PriceBand`.
-- `vyapaar-core/src/ids.rs` — `InstrumentId`.
+- `tantra-risk/src/engine.rs` — `RiskEngine` applies `RiskLimits` on every check.
+- `tantra-core/src/types.rs` — `Price`, `Quantity`, `PriceBand`.
+- `tantra-core/src/ids.rs` — `InstrumentId`.

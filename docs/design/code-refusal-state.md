@@ -1,6 +1,6 @@
-# `vyapaar-risk` — Refusal & State Reference
+# `tantra-risk` — Refusal & State Reference
 
-Documents `vyapaar-risk/src/refusal.rs` and `vyapaar-risk/src/state.rs`.
+Documents `tantra-risk/src/refusal.rs` and `tantra-risk/src/state.rs`.
 
 ## `RiskRefusal` (`refusal.rs`)
 
@@ -89,5 +89,5 @@ and deterministic, with explicit `DateTime<Utc>` timestamps and no wall-clock qu
 
 ## Related
 
-- `vyapaar-risk/src/engine.rs` — `RiskEngine` holds `global_state`, `algo_states`, `market_circuit`.
-- `vyapaar-risk/src/algo_registry.rs` — `AlgoIdRegistry` / `AlgoRegistrationStatus` (registration status, distinct from `AlgoState`).
+- `tantra-risk/src/engine.rs` — `RiskEngine` holds `global_state`, `algo_states`, `market_circuit`.
+- `tantra-risk/src/algo_registry.rs` — `AlgoIdRegistry` / `AlgoRegistrationStatus` (registration status, distinct from `AlgoState`).

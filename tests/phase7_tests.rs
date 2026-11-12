@@ -1,4 +1,4 @@
-//! Comprehensive Phase 7 verification tests for vyapaar-risk:
+//! Comprehensive Phase 7 verification tests for tantra-risk:
 //! - 7.1 Dynamic Position Sizing Risk Budget Interception
 //! - 7.2 Observability & Prometheus Metrics Instrumentation (with OpenTelemetry TraceContext)
 //! - 7.3 Mutation Testing Rigor (freeze slicing, concentration, leverage, fast checks)
@@ -6,11 +6,11 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 
-use vyapaar_core::{
+use tantra_core::{
     Exchange, InstrumentId, Money, OrderRequest, OrderSide, OrderType, PositionSide,
     PositionSizingRequest, Price, PriceBand, Quantity, RiskBudget, SizingMethod, TraceContext,
 };
-use vyapaar_risk::{
+use tantra_risk::{
     RiskEngine, RiskRefusal, SizingRiskRefusal, global_metrics, validate_sizing_request,
 };
 
@@ -76,7 +76,7 @@ fn test_sizing_portfolio_risk_cap_exceeded() {
     assert!(res.is_err());
     let err = res.unwrap_err();
     match err {
-        vyapaar_risk::RiskError::SizingRefusal(SizingRiskRefusal::PortfolioRiskCapExceeded {
+        tantra_risk::RiskError::SizingRefusal(SizingRiskRefusal::PortfolioRiskCapExceeded {
             requested_risk_pct,
             max_portfolio_risk_pct,
             ..
@@ -109,7 +109,7 @@ fn test_sizing_below_minimum_lot_size() {
     assert!(res.is_err());
     let err = res.unwrap_err();
     match err {
-        vyapaar_risk::RiskError::SizingRefusal(SizingRiskRefusal::BelowMinimumLotSize {
+        tantra_risk::RiskError::SizingRefusal(SizingRiskRefusal::BelowMinimumLotSize {
             quantity,
             min_lot_size,
         }) => {
@@ -165,7 +165,7 @@ fn test_sizing_invalid_entry_price_and_equity() {
     let res = validate_sizing_request(&req_zero_price, &budget);
     assert!(matches!(
         res,
-        Err(vyapaar_risk::RiskError::SizingRefusal(
+        Err(tantra_risk::RiskError::SizingRefusal(
             SizingRiskRefusal::InvalidEntryPrice { .. }
         ))
     ));
@@ -189,7 +189,7 @@ fn test_sizing_invalid_entry_price_and_equity() {
     let res_eq = validate_sizing_request(&req_zero_eq, &zero_eq_budget);
     assert!(matches!(
         res_eq,
-        Err(vyapaar_risk::RiskError::SizingRefusal(
+        Err(tantra_risk::RiskError::SizingRefusal(
             SizingRiskRefusal::InvalidEquity { .. }
         ))
     ));
@@ -209,7 +209,7 @@ fn test_sizing_invalid_entry_price_and_equity() {
     let res_sl = validate_sizing_request(&req_bad_sl, &budget);
     assert!(matches!(
         res_sl,
-        Err(vyapaar_risk::RiskError::SizingRefusal(
+        Err(tantra_risk::RiskError::SizingRefusal(
             SizingRiskRefusal::InvalidStopLoss { .. }
         ))
     ));
@@ -231,7 +231,7 @@ fn test_sizing_engine_global_halt() {
     let res = engine.validate_sizing_request(&req, &budget);
     assert!(matches!(
         res,
-        Err(vyapaar_risk::RiskError::SizingRefusal(
+        Err(tantra_risk::RiskError::SizingRefusal(
             SizingRiskRefusal::PlatformHalted { .. }
         ))
     ));
@@ -243,7 +243,7 @@ fn test_sizing_engine_global_halt() {
 
 #[test]
 fn test_prometheus_metrics_lifecycle() {
-    let metrics = vyapaar_risk::RiskMetrics::new().expect("Failed to create metrics");
+    let metrics = tantra_risk::RiskMetrics::new().expect("Failed to create metrics");
 
     // 1. Record evaluation duration in sub-microsecond buckets
     metrics.record_evaluation_duration(0.000_000_150); // 150 ns

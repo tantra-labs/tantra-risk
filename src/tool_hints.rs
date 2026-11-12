@@ -10,17 +10,17 @@
 //! instead of being hand-duplicated inside the MCP crate.
 //!
 //! Pure and side-effect free: classification is a total, deterministic map
-//! from the closed [`vyapaar_core::Decision`] grammar to a [`ToolRiskHint`].
+//! from the closed [`tantra_core::Decision`] grammar to a [`ToolRiskHint`].
 //!
-//! NOTE: `vyapaar-agent/docs/plans/0001` names a `DecisionKind` type in
-//! `vyapaar-core` as the classification input. That type does not exist in
+//! NOTE: `tantra-agent/docs/plans/0001` names a `DecisionKind` type in
+//! `tantra-core` as the classification input. That type does not exist in
 //! the kernel today, so this module classifies the closed [`Decision`] enum
 //! directly — an exact, exhaustive mapping over its five variants — and
 //! avoids inventing a redundant kernel type.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyapaar_core::Decision;
+use tantra_core::Decision;
 
 /// MCP tool-risk annotation vocabulary (`readOnlyHint`, `destructiveHint`,
 /// `idempotentHint`), kept intentionally minimal and additive.

@@ -1,7 +1,7 @@
 //! Exhaustive tests for the MCP tool-risk classification hook.
 
-use vyapaar_core::{Decision, Exchange, InstrumentId, OrderSide, Quantity};
-use vyapaar_risk::{ToolRiskHint, risk_classification};
+use tantra_core::{Decision, Exchange, InstrumentId, OrderSide, Quantity};
+use tantra_risk::{ToolRiskHint, risk_classification};
 
 fn any_instrument() -> InstrumentId {
     InstrumentId::new(Exchange::Nse, "RELIANCE")

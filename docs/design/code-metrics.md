@@ -1,6 +1,6 @@
-# `vyapaar-risk` — Metrics Reference
+# `tantra-risk` — Metrics Reference
 
-Documents `vyapaar-risk/src/metrics.rs`: Prometheus telemetry for pre-trade risk gate
+Documents `tantra-risk/src/metrics.rs`: Prometheus telemetry for pre-trade risk gate
 observability. Metrics are collected with the **`prometheus` crate (0.13)** — not
 hand-rolled atomic/lock-free structures. The collectors themselves are internally
 atomic; no locks or extra allocations are introduced by the crate on the record path.
@@ -86,5 +86,5 @@ crate uses `rust_decimal::Decimal`.
 
 ## Related
 
-- `vyapaar-risk/src/engine.rs` — `RiskEngine` records metrics on every check.
-- `vyapaar-risk/src/refusal.rs` — `RiskRefusal::rule()` supplies `rule_name` labels.
+- `tantra-risk/src/engine.rs` — `RiskEngine` records metrics on every check.
+- `tantra-risk/src/refusal.rs` — `RiskRefusal::rule()` supplies `rule_name` labels.

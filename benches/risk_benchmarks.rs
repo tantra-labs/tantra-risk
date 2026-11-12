@@ -1,12 +1,12 @@
-//! Microsecond-latency benchmarks for vyapaar-risk RiskEngine.
+//! Microsecond-latency benchmarks for tantra-risk RiskEngine.
 //!
 //! Target: < 15µs per order check on the pre-trade evaluation loop.
 //! Uses Criterion for statistical measurement and regression detection.
 
 use chrono::Utc;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use vyapaar_core::{Exchange, InstrumentId, OrderRequest, OrderSide, OrderType, Price, Quantity};
-use vyapaar_risk::{OtrConfig, RiskEngine, RiskLimits};
+use tantra_core::{Exchange, InstrumentId, OrderRequest, OrderSide, OrderType, Price, Quantity};
+use tantra_risk::{OtrConfig, RiskEngine, RiskLimits};
 
 fn make_order_request(algo_id: &str, symbol: &str, qty: u64) -> OrderRequest {
     OrderRequest::new(
@@ -37,7 +37,7 @@ fn bench_check_order_basic(c: &mut Criterion) {
 fn bench_check_order_with_price_band(c: &mut Criterion) {
     let mut engine = RiskEngine::default();
     engine.register_algo("bench-algo");
-    let band = vyapaar_core::PriceBand::new(
+    let band = tantra_core::PriceBand::new(
         Price::from_rupees("2000.00").unwrap(),
         Price::from_rupees("3000.00").unwrap(),
         Price::from_rupees("2500.00").unwrap(),

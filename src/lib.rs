@@ -1,4 +1,4 @@
-//! # व्यापार・門 vyapaar-risk
+//! # व्यापार・門 tantra-risk
 //!
 //! Synchronous, deterministic pre-trade risk engine and regulatory compliance validator for Indian equities (NSE / BSE / NFO).
 //!

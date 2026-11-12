@@ -1,4 +1,4 @@
-//! The synchronous, deterministic Risk Gate (`vyapaar-risk`).
+//! The synchronous, deterministic Risk Gate (`tantra-risk`).
 //!
 //! A pure synchronous module that cannot be bypassed by LLMs or strategies.
 //! Operates between Strategy Decision / Execution Request and the Broker Executor.
@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 use std::collections::{HashMap, VecDeque};
 
-use vyapaar_core::{
+use tantra_core::{
     Decision, Exchange, FillReport, InstrumentId, OrderRequest, PositionSizingRequest, Price,
     PriceBand, Quantity, RiskBudget, TraceContext,
 };
@@ -413,7 +413,7 @@ impl RiskEngine {
     }
 
     /// Core synchronous risk evaluation pipeline instrumented with OpenTelemetry
-    /// tracing spans propagating W3C [`TraceContext`] from `vyapaar-core`.
+    /// tracing spans propagating W3C [`TraceContext`] from `tantra-core`.
     fn evaluate_core(
         &mut self,
         algo_id: &str,

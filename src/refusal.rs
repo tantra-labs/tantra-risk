@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use vyapaar_core::{InstrumentId, Price, PriceBand, Quantity};
+use tantra_core::{InstrumentId, Price, PriceBand, Quantity};
 
 /// Typed refusal reason from the risk gate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

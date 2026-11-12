@@ -1,8 +1,8 @@
-# `vyapaar-risk` — DDD Architecture & Pre-Trade Regulatory Gate
+# `tantra-risk` — DDD Architecture & Pre-Trade Regulatory Gate
 
 ## 1. Bounded Context & Responsibility
 
-`vyapaar-risk` (Tier 1A, ported from `honba-mon`) is the **authoritative, synchronous
+`tantra-risk` (Tier 1A, ported from `honba-mon`) is the **authoritative, synchronous
 pre-trade regulatory risk gate** for Indian equities and derivatives (NSE / BSE / NFO).
 Every order placement, modification, cancellation, AI `Decision`, and position-sizing
 request must pass through `RiskEngine` before reaching execution. It is pure and
@@ -93,7 +93,7 @@ These divergences are tracked in
 ### 4.3 `check_decision` — closed `Decision` grammar
 
 `check_decision(&Decision, now)` validates the decision structurally
-(`decision.validate()`), then maps the `vyapaar_core::Decision` grammar:
+(`decision.validate()`), then maps the `tantra_core::Decision` grammar:
 
 | Decision variant | Action |
 |------------------|--------|

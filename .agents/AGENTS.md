@@ -1,4 +1,4 @@
-# `vyapaar-risk` Agent Guidelines & Architecture Invariants
+# `tantra-risk` Agent Guidelines & Architecture Invariants
 
 **Subsystem**: Gate (Pre-Trade Regulatory Risk Engine)
 **Language**: Rust
@@ -7,7 +7,7 @@
 ---
 
 ## 1. Role & Architectural Hints
-* `vyapaar-risk` enforces non-negotiable exchange and SEBI rules:
+* `tantra-risk` enforces non-negotiable exchange and SEBI rules:
   1. **SEBI Algo ID Validation**: Mandatory exchange-assigned algorithmic identifier attached to every order.
   2. **Order-to-Trade Ratio (OTR) Circuit Breakers**: Sliding-window tracking of orders, modifications, cancellations, and fills with automatic halting on breach.
   3. **Scrip Circuit Bands**: 2%, 5%, 10%, 20% operational price bands rejecting out-of-band limit orders.
@@ -15,7 +15,7 @@
   5. **Emergency Kill-Switch**: Global and per-algo immediate trading suspension and reduce-only mode.
 * **Latency Invariant**: Synchronous evaluation must execute in under 15 microseconds.
 * **Idea Inheritance**:
-  - **NoFX**: Untrusted signal runtime clamping; the AI cannot override or bypass `vyapaar-risk`.
+  - **NoFX**: Untrusted signal runtime clamping; the AI cannot override or bypass `tantra-risk`.
   - **NautilusTrader**: Synchronous deterministic risk filters before execution buffers.
 
 ---

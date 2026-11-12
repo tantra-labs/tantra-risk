@@ -1,6 +1,6 @@
-# `vyapaar-risk` — Tool Risk Hints Reference
+# `tantra-risk` — Tool Risk Hints Reference
 
-Documents `vyapaar-risk/src/tool_hints.rs`: MCP tool-call annotation hooks. Fincept's MCP
+Documents `tantra-risk/src/tool_hints.rs`: MCP tool-call annotation hooks. Fincept's MCP
 tools carry `readOnlyHint` / `destructiveHint` / `idempotentHint` annotations so a calling
 agent or host knows what needs human confirmation before a tool is even invoked. The
 synchronous pre-trade gate in `engine.rs` is the execution-time authority on what a decision
@@ -33,7 +33,7 @@ impl ToolRiskHint {
 pub fn risk_classification(decision: &Decision) -> ToolRiskHint
 ```
 
-A pure, total, deterministic map over the closed `vyapaar_core::Decision` grammar:
+A pure, total, deterministic map over the closed `tantra_core::Decision` grammar:
 
 | Decision variant | Hint |
 |------------------|------|
@@ -49,7 +49,7 @@ on the decision variant (not tool name, parameters, or system state).
 
 ## Notes
 
-- `vyapaar-agent/docs/plans/0001` names a `DecisionKind` type in `vyapaar-core` as the
+- `tantra-agent/docs/plans/0001` names a `DecisionKind` type in `tantra-core` as the
   classification input. That type does not exist in the kernel today, so this module
   classifies the closed `Decision` enum directly and avoids inventing a redundant kernel type.
 
@@ -57,4 +57,4 @@ on the decision variant (not tool name, parameters, or system state).
 
 - Plan 0001 — Tool-Call Annotation Hooks for the MCP Gateway, commit `5b00cda`
   (`ToolRiskHint`, `risk_classification`, `tests/tool_hints_tests.rs`).
-- `vyapaar-risk/tests/tool_hints_tests.rs` — exhaustive variant + `mcp_key()` + serde tests.
+- `tantra-risk/tests/tool_hints_tests.rs` — exhaustive variant + `mcp_key()` + serde tests.

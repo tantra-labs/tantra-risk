@@ -3,7 +3,7 @@
 //! Extracted from `src/algo_registry.rs` during Tier 1A migration per the
 //! Parallel Test Directory Rule: zero `#[cfg(test)]` modules inside `src/`.
 
-use vyapaar_risk::AlgoIdRegistry;
+use tantra_risk::AlgoIdRegistry;
 
 #[test]
 fn test_register_and_check() {

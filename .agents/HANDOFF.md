@@ -1,8 +1,8 @@
-# HANDOFF — vyapaar-risk
+# HANDOFF — tantra-risk
 
 **Status**: Docs batch complete — former `docs/roadmap/` dismantled into
 `docs/design/` + `docs/gaps/` + `docs/plans/`; all design docs rewritten to match source.
-**Date**: 2026-11-12 · Repo: `vyapaar-risk` · Branch: `main`
+**Date**: 2026-11-12 · Repo: `tantra-risk` · Branch: `main`
 
 ## Phase / Slice Status
 
@@ -18,12 +18,12 @@
   new `0002-close-declared-unenforced-risk-controls` collects gaps 0001–0004.
 - **`docs/roadmap/` removed**; completed milestones folded into
   `docs/design/implementation-record.md` (test inventory + verification commands) and
-  `code-migration-map.md` (honba-mon → vyapaar-risk mapping kept).
+  `code-migration-map.md` (honba-mon → tantra-risk mapping kept).
 
 ## Decisions & Discoveries
 
-- `vyapaar-exec/src/executor.rs::RiskGatedExecutor` and `vyapaar-exec/src/router/src/otr.rs`
-  do not exist (verified `vyapaar-exec/src/` absent) — all such cross-references dropped.
+- `tantra-exec/src/executor.rs::RiskGatedExecutor` and `tantra-exec/src/router/src/otr.rs`
+  do not exist (verified `tantra-exec/src/` absent) — all such cross-references dropped.
 - `RiskRefusal::ReduceOnlyViolation` is never constructed; `GlobalState::ReduceOnly` checked
   nowhere; `window_otr_1min`/`window_otr_5min` hardcode 60s/300s (config fields dead).
 - `Instant::now()` in `engine.rs` is latency-metrics only; no `Utc::now()`/`SystemTime::now()`

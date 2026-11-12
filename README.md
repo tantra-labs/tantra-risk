@@ -1,4 +1,4 @@
-# व्यापार・风控 vyapaar-risk
+# व्यापार・风控 tantra-risk
 
 > *Regulatory Risk Gate: Sub-15 µs pre-trade risk engine for Indian markets (NSE/BSE).*
 

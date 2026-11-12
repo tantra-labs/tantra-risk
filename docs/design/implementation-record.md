@@ -1,10 +1,10 @@
-# `vyapaar-risk` — Implementation Record
+# `tantra-risk` — Implementation Record
 
 Dismantled from the former `docs/roadmap/` (`roadmap.md` + `migration-verification.md`).
 Completed milestones are recorded here; remaining future work moved to
 [`docs/gaps/`](../gaps/README.md) and [`docs/plans/`](../plans/README.md).
 
-## Migration: `honba-mon` → `vyapaar-risk` (Tier 1A)
+## Migration: `honba-mon` → `tantra-risk` (Tier 1A)
 
 | Milestone | Status |
 |-----------|--------|

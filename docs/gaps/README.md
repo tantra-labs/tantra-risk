@@ -1,4 +1,4 @@
-# Gaps Index — `vyapaar-risk`
+# Gaps Index — `tantra-risk`
 
 Per workspace rule `.agents/rules/gap-tracking.md`:
 

@@ -1,9 +1,9 @@
-# `vyapaar-risk` — Sizing Gate Reference
+# `tantra-risk` — Sizing Gate Reference
 
-Documents `vyapaar-risk/src/sizing_gate.rs` and the `RiskEngine::validate_sizing_request`
+Documents `tantra-risk/src/sizing_gate.rs` and the `RiskEngine::validate_sizing_request`
 entry point: the dynamic risk-budget pre-trade gate for position sizing requests. It
-synchronously validates a `vyapaar_core::PositionSizingRequest` against a
-`vyapaar_core::RiskBudget` before sizing decisions can emit executable orders.
+synchronously validates a `tantra_core::PositionSizingRequest` against a
+`tantra_core::RiskBudget` before sizing decisions can emit executable orders.
 
 ## `SizingRiskRefusal`
 
@@ -42,7 +42,7 @@ Enforcement steps (in source order):
    for `PositionSide::Long` and above it for `Short` (`InvalidStopLoss`).
 4. **Method-level risk cap** — `SizingMethod::FixedFractional { risk_pct }` with
    `risk_pct > max_portfolio_risk_pct` is rejected up front (`PortfolioRiskCapExceeded`).
-5. **Deterministic sizing** — delegates to `vyapaar_core::calculate_position_size` with the
+5. **Deterministic sizing** — delegates to `tantra_core::calculate_position_size` with the
    engine-supplied budget aligned into the request; failures become `CalculationError`.
 6. **Actual risk-at-stake cap** — the computed `risk_at_stake / equity` must not exceed
    `max_portfolio_risk_pct` (`PortfolioRiskCapExceeded`).
@@ -72,7 +72,7 @@ where the budget omits them.
 ## Zero-Floats Policy
 
 All risk budget values, position sizes, and utilization ratios use `rust_decimal::Decimal`
-and `vyapaar_core` `Money` / `Price` / `Quantity` wrappers — exact arithmetic, no floats.
+and `tantra_core` `Money` / `Price` / `Quantity` wrappers — exact arithmetic, no floats.
 
 ## Zero-I/O / Temporal Determinism
 
@@ -82,7 +82,7 @@ queries occur here.
 
 ## Related
 
-- `vyapaar-core/src/sizing.rs` — `PositionSizingRequest`, `PositionSizingResult`, `RiskBudget`,
+- `tantra-core/src/sizing.rs` — `PositionSizingRequest`, `PositionSizingResult`, `RiskBudget`,
   `SizingMethod`, `calculate_position_size`.
-- `vyapaar-risk/src/error.rs` — `RiskError::SizingRefusal(#[from] SizingRiskRefusal)`.
-- `vyapaar-risk/src/engine.rs` — `RiskEngine::validate_sizing_request`.
+- `tantra-risk/src/error.rs` — `RiskError::SizingRefusal(#[from] SizingRiskRefusal)`.
+- `tantra-risk/src/engine.rs` — `RiskEngine::validate_sizing_request`.

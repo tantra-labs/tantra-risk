@@ -1,4 +1,4 @@
-//! Property-based tests for vyapaar-risk using proptest.
+//! Property-based tests for tantra-risk using proptest.
 //!
 //! Ensures the risk engine never panics or yields false-positive approvals
 //! under randomized order streams, adversarial inputs, and edge-case scenarios.
@@ -6,8 +6,8 @@
 use chrono::Utc;
 use proptest::prelude::*;
 use rust_decimal::Decimal;
-use vyapaar_core::{Exchange, InstrumentId, OrderRequest, OrderSide, OrderType, Price, Quantity};
-use vyapaar_risk::{OtrConfig, RiskEngine, RiskLimits};
+use tantra_core::{Exchange, InstrumentId, OrderRequest, OrderSide, OrderType, Price, Quantity};
+use tantra_risk::{OtrConfig, RiskEngine, RiskLimits};
 
 /// Arbitrary order side generator.
 fn arb_order_side() -> impl Strategy<Value = OrderSide> {
@@ -147,7 +147,7 @@ proptest! {
         engine.register_algo(algo_id.clone());
 
         // Set a tight price band: 1000 to 2000
-        let band = vyapaar_core::PriceBand::new(
+        let band = tantra_core::PriceBand::new(
             Price::from_rupees("1000.00").unwrap(),
             Price::from_rupees("2000.00").unwrap(),
             Price::from_rupees("1500.00").unwrap(),

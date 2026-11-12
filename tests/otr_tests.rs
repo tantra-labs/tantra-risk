@@ -5,7 +5,7 @@
 
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
-use vyapaar_risk::{OtrConfig, OtrTracker};
+use tantra_risk::{OtrConfig, OtrTracker};
 
 #[test]
 fn test_cumulative_otr() {

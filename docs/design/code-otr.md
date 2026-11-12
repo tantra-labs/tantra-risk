@@ -1,6 +1,6 @@
-# `vyapaar-risk` — OTR Tracker Reference
+# `tantra-risk` — OTR Tracker Reference
 
-Documents `vyapaar-risk/src/otr.rs`: the SEBI Order-to-Trade Ratio tracker with
+Documents `tantra-risk/src/otr.rs`: the SEBI Order-to-Trade Ratio tracker with
 sliding-window computation and per-algo / per-scrip circuit breaking. Under the SEBI
 regulatory framework (and the Retail Algo Circular effective August 1, 2025), algorithmic
 orders must maintain acceptable OTR levels.
@@ -91,5 +91,5 @@ queries.
 
 ## Related
 
-- `vyapaar-risk/src/engine.rs` — `RiskEngine` uses `OtrTracker` for per-algo and per-scrip tracking.
-- `vyapaar-risk/src/refusal.rs` — `RiskRefusal::OtrBreached`, `RiskRefusal::ScripOtrBreached`.
+- `tantra-risk/src/engine.rs` — `RiskEngine` uses `OtrTracker` for per-algo and per-scrip tracking.
+- `tantra-risk/src/refusal.rs` — `RiskRefusal::OtrBreached`, `RiskRefusal::ScripOtrBreached`.

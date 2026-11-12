@@ -1,6 +1,6 @@
-# `vyapaar-risk` — Risk Engine Reference
+# `tantra-risk` — Risk Engine Reference
 
-Documents `vyapaar-risk/src/engine.rs`: the synchronous, deterministic pre-trade risk
+Documents `tantra-risk/src/engine.rs`: the synchronous, deterministic pre-trade risk
 gate that operates between Strategy Decision / Execution Request and the Broker
 Executor. Cannot be bypassed by LLMs or strategies.
 
@@ -135,13 +135,13 @@ Because of this, the two paths can disagree on scrip OTR enforcement; tracked in
 - 100% synchronous, in-memory — no async, no network, no disk.
 - All timestamps injected explicitly via `DateTime<Utc>`; no `Utc::now()` / `SystemTime::now()`.
   `Instant::now()` is used only to measure evaluation latency for metrics, never for state.
-- All financial values use `rust_decimal::Decimal` (`Price` / `Quantity` wrappers from `vyapaar-core`).
+- All financial values use `rust_decimal::Decimal` (`Price` / `Quantity` wrappers from `tantra-core`).
 
 ## Related
 
-- `vyapaar-risk/src/otr.rs` — `OtrTracker`, sliding-window OTR
-- `vyapaar-risk/src/limits.rs` — `RiskLimits`, `OrderRateLimit`
-- `vyapaar-risk/src/algo_registry.rs` — `AlgoIdRegistry`
-- `vyapaar-risk/src/state.rs` — `GlobalState`, `AlgoState`, `MarketCircuitHalt`
-- `vyapaar-risk/src/refusal.rs` — `RiskRefusal`
-- `vyapaar-risk/src/sizing_gate.rs` — `validate_sizing_request`
+- `tantra-risk/src/otr.rs` — `OtrTracker`, sliding-window OTR
+- `tantra-risk/src/limits.rs` — `RiskLimits`, `OrderRateLimit`
+- `tantra-risk/src/algo_registry.rs` — `AlgoIdRegistry`
+- `tantra-risk/src/state.rs` — `GlobalState`, `AlgoState`, `MarketCircuitHalt`
+- `tantra-risk/src/refusal.rs` — `RiskRefusal`
+- `tantra-risk/src/sizing_gate.rs` — `validate_sizing_request`

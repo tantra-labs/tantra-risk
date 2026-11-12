@@ -1,7 +1,7 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
-use vyapaar_core::*;
-use vyapaar_risk::*;
+use tantra_core::*;
+use tantra_risk::*;
 
 #[test]
 fn test_global_kill_switch() {

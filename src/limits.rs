@@ -4,7 +4,7 @@ use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use vyapaar_core::{InstrumentId, Quantity};
+use tantra_core::{InstrumentId, Quantity};
 
 /// Rate limit: maximum number of approved orders in an event-time window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -17,16 +17,16 @@ pub struct OrderRateLimit {
 
 /// Hard risk limits applied synchronously to all outgoing orders and decisions.
 ///
-/// This struct merges rules from `vyapaar-ledger::RiskLimits` (deprecated)
-/// with the canonical vyapaar-risk risk limit schema.
+/// This struct merges rules from `tantra-ledger::RiskLimits` (deprecated)
+/// with the canonical tantra-risk risk limit schema.
 ///
-/// Legacy fields from `vyapaar-ledger` (mapped during Phase 1.2):
+/// Legacy fields from `tantra-ledger` (mapped during Phase 1.2):
 /// - `max_notional` (f64, per-order notional ceiling) → `max_notional_per_order` (Decimal)
 /// - `max_participation` (f64, fraction of ADV) → `max_quantity_per_order` (Quantity)
 /// - `order_rate` (OrderRateLimit) → `order_rate_limit` (OrderRateLimit)
 /// - `stale_after_ms` (u64, feed staleness) → tracked via separate circuit breaker
 ///
-/// New vyapaar-risk fields:
+/// New tantra-risk fields:
 /// - `max_daily_loss` (Decimal, daily cumulative loss limit)
 /// - `price_collar_bps` (u32, market order deviation collar in basis points)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]

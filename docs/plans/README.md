@@ -1,4 +1,4 @@
-# Plans Index — `vyapaar-risk`
+# Plans Index — `tantra-risk`
 
 Per workspace rule `.agents/rules/gap-tracking.md`:
 - Gaps are individual features (`docs/gaps/XXXX-*.md`).
@@ -9,13 +9,13 @@ Per workspace rule `.agents/rules/gap-tracking.md`:
 
 | # | Title | Target Scope | Gaps | Status |
 |---|-------|--------------|------|--------|
-| 0002 | Close declared-but-unenforced risk controls | `vyapaar-risk` | 0001–0004 | open |
+| 0002 | Close declared-but-unenforced risk controls | `tantra-risk` | 0001–0004 | open |
 
 ## Implemented Plans
 
 | # | Title | Target Scope | Implemented In |
 |---|-------|--------------|----------------|
-| 0001 | Tool-Call Annotation Hooks for the MCP Gateway (`readOnlyHint` / `destructiveHint`) | `vyapaar-risk` | Commit `5b00cda` (`ToolRiskHint`, `risk_classification`, `tests/tool_hints_tests.rs`) |
+| 0001 | Tool-Call Annotation Hooks for the MCP Gateway (`readOnlyHint` / `destructiveHint`) | `tantra-risk` | Commit `5b00cda` (`ToolRiskHint`, `risk_classification`, `tests/tool_hints_tests.rs`) |
 
 ## Cleanup note
 

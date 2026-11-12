@@ -16,7 +16,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use vyapaar_core::{
+use tantra_core::{
     InstrumentId, Money, PositionSizingRequest, Price, Quantity, RiskBudget, SizingMethod,
     calculate_position_size,
 };
@@ -104,7 +104,7 @@ pub enum SizingRiskRefusal {
         /// Entry price
         entry_price: Price,
         /// Trade side
-        side: vyapaar_core::PositionSide,
+        side: tantra_core::PositionSide,
     },
 
     /// Platform is in emergency halt.
@@ -266,7 +266,7 @@ pub fn validate_sizing_request(
             ));
         }
         match request.side {
-            vyapaar_core::PositionSide::Long => {
+            tantra_core::PositionSide::Long => {
                 if sl.value() >= request.entry_price.value() {
                     return Err(RiskError::SizingRefusal(
                         SizingRiskRefusal::InvalidStopLoss {
@@ -277,7 +277,7 @@ pub fn validate_sizing_request(
                     ));
                 }
             }
-            vyapaar_core::PositionSide::Short => {
+            tantra_core::PositionSide::Short => {
                 if sl.value() <= request.entry_price.value() {
                     return Err(RiskError::SizingRefusal(
                         SizingRiskRefusal::InvalidStopLoss {
@@ -312,7 +312,7 @@ pub fn validate_sizing_request(
         }
     }
 
-    // 5. Compute deterministic position sizing using vyapaar-core
+    // 5. Compute deterministic position sizing using tantra-core
     let mut aligned_req = request.clone();
     aligned_req.risk_budget = budget.clone();
 

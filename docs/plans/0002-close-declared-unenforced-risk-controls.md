@@ -4,7 +4,7 @@
 
 ## Scope
 
-Closes the four source-verified gaps in `vyapaar-risk` where a declared config knob or API
+Closes the four source-verified gaps in `tantra-risk` where a declared config knob or API
 surface is not enforced by any check path:
 
 | Gap | Severity | Title |

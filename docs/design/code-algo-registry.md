@@ -1,6 +1,6 @@
-# `vyapaar-risk` — Algo ID Registry Reference
+# `tantra-risk` — Algo ID Registry Reference
 
-Documents `vyapaar-risk/src/algo_registry.rs`: the SEBI Retail Algo Circular registry of
+Documents `tantra-risk/src/algo_registry.rs`: the SEBI Retail Algo Circular registry of
 exchange-registered algorithmic identifiers. Under the SEBI Retail Algo Circular (effective
 August 1, 2025), every algorithmic order must carry a registered `algo_id`; the registry is
 consulted synchronously during pre-trade risk evaluation.
@@ -59,8 +59,8 @@ timing lives on `AlgoState::Halted` in `state.rs`).
 
 ## Related
 
-- `vyapaar-risk/src/engine.rs` — `RiskEngine` consults `algo_registry` on every check
+- `tantra-risk/src/engine.rs` — `RiskEngine` consults `algo_registry` on every check
   (`evaluate_core_checks` step 2.5, `check_order_fast_checks` step 2.5).
-- `vyapaar-risk/src/state.rs` — `AlgoState` (operational halt state) definition.
-- `vyapaar-risk/src/refusal.rs` — `RiskRefusal::AlgoNotRegistered`.
-- `vyapaar-core/src/decision.rs` — `Decision` carries the `algo_id` field.
+- `tantra-risk/src/state.rs` — `AlgoState` (operational halt state) definition.
+- `tantra-risk/src/refusal.rs` — `RiskRefusal::AlgoNotRegistered`.
+- `tantra-core/src/decision.rs` — `Decision` carries the `algo_id` field.
