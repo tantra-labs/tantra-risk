@@ -3,7 +3,7 @@
 Verification commands for the `honba-mon → vyapaar-risk` migration:
 
 ```bash
-cd /home/pmallapp/Devel/Finance/vyapaar-labs/vyapaar-risk
+# Run from the repository root
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test

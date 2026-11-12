@@ -1,8 +1,8 @@
 # `vyapaar-risk` — Historical Migration Map (honba-mon → vyapaar-risk)
 
 > **Tier**: Tier 1A (Depends only on `vyapaar-core`)
-> **Source**: `/home/pmallapp/Devel/Finance/honba-workspace/honba-mon`
-> **Target**: `/home/pmallapp/Devel/Finance/vyapaar-labs/vyapaar-risk`
+> **Source**: `honba-workspace/honba-mon`
+> **Target**: `vyapaar-risk`
 > **Status**: Migration complete (all modules ported).
 
 ## File-by-File Migration Map
@@ -34,7 +34,7 @@
 ## Verification Commands
 
 ```bash
-cd /home/pmallapp/Devel/Finance/vyapaar-labs/vyapaar-risk
+# Run from the repository root
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
