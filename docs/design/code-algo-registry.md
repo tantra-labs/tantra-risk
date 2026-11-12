@@ -1,33 +1,66 @@
 # `vyapaar-risk` — Algo ID Registry Reference
 
-Documents `vyapaar-risk/src/algo_registry.rs`: SEBI Retail Algo Circular registry
-tracking approved `AlgoId`s and per-algo state.
+Documents `vyapaar-risk/src/algo_registry.rs`: the SEBI Retail Algo Circular registry of
+exchange-registered algorithmic identifiers. Under the SEBI Retail Algo Circular (effective
+August 1, 2025), every algorithmic order must carry a registered `algo_id`; the registry is
+consulted synchronously during pre-trade risk evaluation.
+
+## `AlgoRegistrationStatus`
+
+Per-algo registration status (note: there is **no** `ReduceOnly` and **no** `Halted`
+variant here — operational halt state lives on `AlgoState` in `state.rs`):
+
+| Variant | Meaning |
+|---------|---------|
+| `Active` | Algo ID is registered and active; orders may be placed. |
+| `Suspended { reason: String }` | Registered but suspended; orders are rejected. |
+| `NotRegistered` | Not registered at all; any order is rejected. |
 
 ## `AlgoIdRegistry`
 
-Maintains the registry of SEBI-assigned algorithmic identifiers. Every order must
-carry a valid, registered `algo_id`. Per-algo state tracks:
+```rust
+#[derive(Debug, Clone, Default)]
+pub struct AlgoIdRegistry {
+    registry: HashMap<String, AlgoRegistrationStatus>,
+}
+```
 
-| State | Meaning |
-|-------|---------|
-| `Active` | Normal trading permitted |
-| `ReduceOnly` | Only reduce-existing-position orders permitted |
-| `Halted` | All trading suspended for this algo |
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `new` | `fn new() -> Self` | Create an empty registry. |
+| `register` | `fn register(&mut self, algo_id: impl Into<String>)` | Insert as `Active`. |
+| `suspend` | `fn suspend(&mut self, algo_id: &str, reason: impl Into<String>)` | Set `Suspended { reason }`. |
+| `reactivate` | `fn reactivate(&mut self, algo_id: &str)` | Set back to `Active`. |
+| `unregister` | `fn unregister(&mut self, algo_id: &str)` | Remove from the registry. |
+| `is_registered_and_active` | `fn is_registered_and_active(&self, algo_id: &str) -> Result<(), String>` | `Ok(())` only for `Active`; descriptive error for `Suspended` / `NotRegistered` / unknown. |
+| `len` | `fn len(&self) -> usize` | Number of registered algo IDs. |
+| `is_empty` | `fn is_empty(&self) -> bool` | Registry is empty. |
+| `registered_ids` | `fn registered_ids(&self) -> Vec<String>` | All registered algo IDs. |
+
+There is **no** `algo_id` format regex in this module or elsewhere in the crate; validation
+is purely against registry membership.
 
 ## Key Responsibilities
 
-- Validate `algo_id` format against `^[A-Za-z0-9_-]{4,32}$`
-- Track per-algo operational state transitions
-- Maintain per-algo OTR trackers and cumulative turnover/PnL
-- Support emergency per-algo halt and resume
+- Track per-algo registration status and state transitions (`register` / `suspend` /
+  `reactivate` / `unregister`).
+- Reject orders from unregistered or suspended algo IDs during pre-trade evaluation
+  (`RiskEngine` consults `is_registered_and_active` on every check — see
+  `code-engine.md`).
 
 ## Zero-Floats Policy
 
 No financial math — all values are identifiers, states, or counters.
 
+## Zero-I/O / Temporal Determinism
+
+Pure in-memory `HashMap`; no I/O, no wall-clock queries. No timestamps are involved (halt
+timing lives on `AlgoState::Halted` in `state.rs`).
+
 ## Related
 
-- `vyapaar-risk/src/engine.rs` — `RiskEngine` consults `algo_registry` on every check.
-- `vyapaar-risk/src/state.rs` — `AlgoState` type definition.
-- `vyapaar-core/src/decision.rs` — `Decision` enum carries `algo_id` field.
-- `vyapaar-exec/src/executor.rs` — `RiskGatedExecutor` enforces algo-level risk.
+- `vyapaar-risk/src/engine.rs` — `RiskEngine` consults `algo_registry` on every check
+  (`evaluate_core_checks` step 2.5, `check_order_fast_checks` step 2.5).
+- `vyapaar-risk/src/state.rs` — `AlgoState` (operational halt state) definition.
+- `vyapaar-risk/src/refusal.rs` — `RiskRefusal::AlgoNotRegistered`.
+- `vyapaar-core/src/decision.rs` — `Decision` carries the `algo_id` field.

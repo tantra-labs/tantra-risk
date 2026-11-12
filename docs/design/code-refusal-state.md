@@ -4,32 +4,90 @@ Documents `vyapaar-risk/src/refusal.rs` and `vyapaar-risk/src/state.rs`.
 
 ## `RiskRefusal` (`refusal.rs`)
 
-The refusal type returned when a decision or order fails pre-trade risk checks.
-Deliberately returns large aggregate payloads by value so the refusal reason is
-fully diagnosable on the hot path. `clippy::result_large_err` is consciously
-accepted at the crate level.
+The typed refusal returned when a decision or order fails pre-trade risk checks. Deliberately
+returns large aggregate payloads by value so the refusal reason is fully diagnosable on the
+hot path; `clippy::result_large_err` is consciously accepted at the crate level
+(`#![allow(clippy::result_large_err)]` in `lib.rs`). Every variant is `serde`-serializable
+(tagged `reason` / `details`, `snake_case`) and exposes a stable `&'static str` via `rule()`.
 
-## `AlgoState` / `GlobalState` / `MarketCircuitHalt` (`state.rs`)
+| Variant | `rule()` | Fields |
+|---------|----------|--------|
+| `GlobalHalted` | `global_halt` | `reason: String` |
+| `AlgoHalted` | `algo_halt` | `algo_id: String`, `reason: String` |
+| `AlgoNotRegistered` | `algo_not_registered` | `algo_id: String`, `reason: String` |
+| `MarketCircuitHalt` | `market_circuit_halt` | `index_symbol: String`, `stage_pct: u8`, `resume_at: Option<DateTime<Utc>>` |
+| `ScripOtrBreached` | `sebi_scrip_otr_breach` | `instrument: InstrumentId`, `current_otr: Decimal`, `max_otr: Decimal` |
+| `OtrBreached` | `sebi_otr_breach` | `algo_id: String`, `current_otr: Decimal`, `max_otr: Decimal` |
+| `PriceBandViolation` | `price_band_violation` | `price: Price`, `band: PriceBand` |
+| `MaxNotionalExceeded` | `max_notional_exceeded` | `requested: Decimal`, `limit: Decimal` |
+| `FreezeLimitExceeded` | `freeze_limit_exceeded` | `instrument: InstrumentId`, `requested: Quantity`, `limit: Quantity` |
+| `MaxQuantityExceeded` | `max_quantity_exceeded` | `requested: Quantity`, `limit: Quantity` |
+| `OrderRateExceeded` | `order_rate_exceeded` | `count: u32`, `limit: u32`, `window_ms: u64` |
+| `DailyLossExceeded` | `daily_loss_exceeded` | `current_loss: Decimal`, `limit: Decimal` |
+| `ReduceOnlyViolation` | `reduce_only_violation` | `details: String` (⚠ never constructed — see gap 0002) |
+| `PositionConcentrationExceeded` | `position_concentration_exceeded` | `instrument`, `position_value: Decimal`, `total_equity: Decimal`, `max_pct: Decimal` |
+| `MisLeverageExceeded` | `mis_leverage_exceeded` | `gross_exposure: Decimal`, `total_equity: Decimal`, `max_leverage: Decimal` |
+| `InvalidOrder` | `invalid_order` | `error: String` |
 
-| Type | Variants | Purpose |
-|------|----------|---------|
-| `GlobalState` | `Active`, `ReduceOnly`, `Halted` | Platform-wide trading state |
-| `AlgoState` | `Active`, `ReduceOnly`, `Halted` | Per-algo operational state |
-| `MarketCircuitHalt` | index-level circuit breaker | Market-wide halt (10%/15%/20% bands) |
+`RiskRefusal` also implements `Display` (a human-readable one-line reason) and
+`std::error::Error`.
 
-## State Transitions
+## `state.rs`
 
-- `Active` → `ReduceOnly`: Soft risk breach, reduce existing positions only
-- `ReduceOnly` → `Halted`: Hard risk breach, no new orders
-- `Halted` → `Active`: Manual resume (or auto-resume after `halt_cooldown_ms`)
-- Any state → `MarketCircuitHalt`: Exchange-level circuit band breach
+### `GlobalState`
+
+```rust
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum GlobalState {
+    #[default] Active,
+    ReduceOnly,                          // declared; not enforced by any check path (gap 0002)
+    Halted { reason: String, halted_at: DateTime<Utc> },
+}
+```
+
+Helpers: `is_active()` (matches `Active`), `is_halted()` (matches `Halted { .. }`).
+
+### `AlgoState`
+
+```rust
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum AlgoState {
+    #[default] Active,
+    Halted { reason: String, halted_at: DateTime<Utc> },
+}
+```
+
+There is **no** `ReduceOnly` variant on `AlgoState` — per-algo operational state is strictly
+`Active | Halted`. Helpers: `is_active()`, `is_halted()`.
+
+### `MarketCircuitHalt`
+
+```rust
+pub struct MarketCircuitHalt {
+    pub index_symbol: String,            // e.g. "NIFTY 50", "SENSEX"
+    pub stage_pct: u8,                   // 10, 15, or 20
+    pub halted_at: DateTime<Utc>,
+    pub resume_at: Option<DateTime<Utc>>, // None = market closed for remainder of day
+}
+```
+
+## State enforcement notes
+
+- `evaluate_core_checks` / `check_order_fast_checks` reject only on
+  `GlobalState::Halted` and `AlgoState::Halted`; `GlobalState::ReduceOnly` is never
+  checked and `RiskRefusal::ReduceOnlyViolation` is never produced
+  ([`docs/gaps/0002-reduce-only-not-enforced.md`](../gaps/0002-reduce-only-not-enforced.md)).
+- State transitions are explicit methods on `RiskEngine` (`halt_global` / `resume_global` /
+  `set_reduce_only` / `halt_algo` / `resume_algo` / `trigger_market_circuit` /
+  `clear_market_circuit`) — see `code-engine.md`.
 
 ## Zero-I/O & Zero-Floats
 
-All state types are plain data — no async, no I/O, no floats. Transitions are
-synchronous and deterministic.
+All state types are plain data — no async, no I/O, no floats. Transitions are synchronous
+and deterministic, with explicit `DateTime<Utc>` timestamps and no wall-clock queries.
 
 ## Related
 
 - `vyapaar-risk/src/engine.rs` — `RiskEngine` holds `global_state`, `algo_states`, `market_circuit`.
-- `vyapaar-risk/src/algo_registry.rs` — `AlgoIdRegistry` tracks per-algo state.
+- `vyapaar-risk/src/algo_registry.rs` — `AlgoIdRegistry` / `AlgoRegistrationStatus` (registration status, distinct from `AlgoState`).

@@ -7,11 +7,19 @@ Per workspace rule `.agents/rules/gap-tracking.md`:
 
 ## Active Plans
 
-| # | Title | Target Scope | Status |
-|---|-------|--------------|--------|
+| # | Title | Target Scope | Gaps | Status |
+|---|-------|--------------|------|--------|
+| 0002 | Close declared-but-unenforced risk controls | `vyapaar-risk` | 0001–0004 | open |
 
 ## Implemented Plans
 
 | # | Title | Target Scope | Implemented In |
 |---|-------|--------------|----------------|
 | 0001 | Tool-Call Annotation Hooks for the MCP Gateway (`readOnlyHint` / `destructiveHint`) | `vyapaar-risk` | Commit `5b00cda` (`ToolRiskHint`, `risk_classification`, `tests/tool_hints_tests.rs`) |
+
+## Cleanup note
+
+The former `docs/roadmap/` was dismantled into `docs/design/` (code references,
+`implementation-record.md`, `code-migration-map.md`) and `docs/gaps/` (open items). No
+`docs/plans/0001-*.md` document exists for the implemented plan — `0001` is recorded directly
+in the Implemented table above and was never reused for the new plan.
