@@ -9,13 +9,14 @@ Per workspace rule `.agents/rules/gap-tracking.md`:
 
 | # | Title | Target Scope | Gaps | Status |
 |---|-------|--------------|------|--------|
-| 0002 | Close declared-but-unenforced risk controls | `tantra-risk` | 0001–0004 | open |
+| — | — | — | — | — |
 
 ## Implemented Plans
 
 | # | Title | Target Scope | Implemented In |
 |---|-------|--------------|----------------|
 | 0001 | Tool-Call Annotation Hooks for the MCP Gateway (`readOnlyHint` / `destructiveHint`) | `tantra-risk` | Commit `5b00cda` (`ToolRiskHint`, `risk_classification`, `tests/tool_hints_tests.rs`) |
+| 0002 | Close declared-but-unenforced risk controls | `tantra-risk` | Commit `9a0bc59` — enforce reduce-only, `price_collar_bps`, fast-path OTR parity, and configured OTR windows; tests in `tests/plan0002_tests.rs` |
 
 ## Cleanup note
 

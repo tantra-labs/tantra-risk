@@ -47,7 +47,7 @@ with `GlobalState::Active`, empty trackers, and `RiskLimits::default()` / `OtrCo
 |--------|---------|
 | `halt_global(reason: impl Into<String>, timestamp: DateTime<Utc>)` | Trigger platform-wide emergency kill-switch (`GlobalState::Halted`). |
 | `resume_global()` | Resume from global halt (`GlobalState::Active`). |
-| `set_reduce_only()` | Set `GlobalState::ReduceOnly` (⚠ not enforced — see gap 0002). |
+| `set_reduce_only()` | Set `GlobalState::ReduceOnly` — order-opening BUYs, modifies, and new position sizing are refused everywhere; reducing SELLs and cancels pass. |
 | `trigger_market_circuit(index_symbol, stage_pct, resume_at: Option<DateTime<Utc>>, halted_at)` | Trip market-wide index circuit (10/15/20%). |
 | `clear_market_circuit()` | Clear market-wide circuit breaker. |
 | `halt_algo(algo_id: &str, reason: impl Into<String>, timestamp: DateTime<Utc>)` | Halt one algo ID (`AlgoState::Halted`). |
@@ -69,13 +69,13 @@ with `GlobalState::Active`, empty trackers, and `RiskLimits::default()` / `OtrCo
 | Method | Purpose |
 |--------|---------|
 | `check_order(&mut self, order: &OrderRequest, now: DateTime<Utc>) -> Result<(), RiskRefusal>` | Full synchronous pre-trade evaluation (structural validation + `evaluate_core`). |
-| `check_order_fast(&mut self, algo_id, instrument, quantity: Quantity, limit_price: Option<Price>, now) -> Result<(), RiskRefusal>` | Zero-allocation hot path (see pipeline divergences below). |
+| `check_order_fast(&mut self, algo_id, instrument, side: OrderSide, quantity: Quantity, limit_price: Option<Price>, now) -> Result<(), RiskRefusal>` | Zero-allocation hot path (rule-parity with `evaluate_core_checks`, incl. per-scrip OTR, warning zone, cooldown auto-resume, reduce-only and the price collar). |
 | `check_decision(&mut self, decision: &Decision, now) -> Result<(), RiskRefusal>` | Synchronously check an AI/LLM `Decision` (closed grammar). |
 | `validate_price_band(&self, instrument: &InstrumentId, price: Price) -> Result<(), RiskRefusal>` | Standalone band check (approves when no band is set). |
 | `check_position_concentration(&self, instrument, position_value: Decimal, total_equity: Decimal) -> Result<(), RiskRefusal>` | Single-scrip concentration vs. equity (`limits.max_position_concentration_pct`). |
 | `check_mis_leverage(&self, gross_exposure: Decimal, total_equity: Decimal) -> Result<(), RiskRefusal>` | MIS gross leverage vs. equity (`limits.max_mis_leverage`). |
 | `suggest_freeze_slices(&self, instrument, quantity: Quantity) -> u32` | Ceiling-division slice count to fit an order under the freeze limit (1 if already within / unset). |
-| `validate_sizing_request(&self, request: &PositionSizingRequest, budget: &RiskBudget) -> Result<(), RiskError>` | Sizing budget gate (rejects on global halt, backfills freeze qty, delegates to `sizing_gate`). |
+| `validate_sizing_request(&self, request: &PositionSizingRequest, budget: &RiskBudget) -> Result<(), RiskError>` | Sizing budget gate (rejects on global halt **and** reduce-only, backfills freeze qty, delegates to `sizing_gate`). |
 
 ### Recording & queries
 
@@ -98,37 +98,38 @@ Called by `check_order` / `check_decision` (via `evaluate_core`, which additiona
 OpenTelemetry `risk_eval_core` span propagating the W3C `TraceContext` and records metrics):
 
 1. Global kill-switch (`GlobalHalted`)
+1.25 Reduce-only — order-opening BUY refused (`ReduceOnlyViolation`); SELL passes (close-long approximation)
 1.5 Market-wide index circuit breaker (`MarketCircuitHalt`)
 2. Per-algo halt with auto-resume cooldown (`halt_cooldown_ms`; `AlgoHalted`)
 2.5 SEBI algo registry (`AlgoNotRegistered`)
 3. Per-algo 1-min OTR + warning zone (`OtrBreached`)
 3.5 Per-scrip OTR (`ScripOtrBreached`)
 4. Price band (`PriceBandViolation`)
+4.5 Market-order price collar (`PriceCollarViolation`)
 5. Max quantity (`MaxQuantityExceeded`)
 5.5 Exchange freeze limit (`FreezeLimitExceeded`)
 6. Max notional (`MaxNotionalExceeded`)
 7. Max daily loss — trips the **global** kill-switch on breach (`DailyLossExceeded`)
 8. Order rate limit — event-time sliding window (`OrderRateExceeded`)
 
-## `check_order_fast` — documented divergences
+## `check_order_fast` — hot-path rule parity
 
-`check_order_fast_checks` enforces the same rules with `HashMap::get()` (no allocation on
-the entry path) but intentionally differs from `evaluate_core_checks`:
-
-- **Per-scrip OTR is not checked on the hot path** — the scrip placement is recorded only
-  after all other checks pass (`scrip_tracker.record_order_placement(now)` at the end) and
-  is never compared against `max_otr`.
-- **OTR warning zone is skipped** (no `warning_ratio` logging).
-- **Halt cooldown auto-resume is skipped** — `AlgoState::Halted` is rejected unconditionally.
-
-Because of this, the two paths can disagree on scrip OTR enforcement; tracked in
-[`docs/gaps/0003-check-order-fast-otr-divergence.md`](../gaps/0003-check-order-fast-otr-divergence.md).
+`check_order_fast_checks` enforces the same rule set with `HashMap::get()` (no allocation on
+the entry path). Since plan 0002 (gaps 0001–0004), it is behaviorally **parity** with
+`evaluate_core_checks`: per-scrip OTR is recorded and checked **before** approval
+(`ScripOtrBreached`), the OTR warning zone is logged, halted algos auto-resume after
+`halt_cooldown_ms`, reduce-only refuses order-opening BUYs, and the market-order price collar
+is applied. The only difference is that the fast path skips the Prometheus `set_otr_ratio`
+gauge updates the full path records.
 
 ## `check_decision` — decision grammar mapping
 
 `Decision::Hold` → approve; `PlaceOrder` → full pipeline on `Exchange::Nse`; `CancelOrder` /
-`CancelAll` / `ModifyOrder` → record the order operation and approve. A structurally invalid
-`Decision` is rejected with `RiskRefusal::InvalidOrder`.
+`CancelAll` → record the order operation and approve (exposure-reducing, allowed in
+reduce-only); `ModifyOrder` → record the order operation and approve, **except under
+reduce-only**, where a modify is refused with `ReduceOnlyViolation` (its risk impact cannot
+be verified without order state). A structurally invalid `Decision` is rejected with
+`RiskRefusal::InvalidOrder`.
 
 ## Zero-I/O & Zero-Floats
 

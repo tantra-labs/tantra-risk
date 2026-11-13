@@ -53,8 +53,8 @@ fixed-size circular buffer). Stale events are evicted from the front by
 | `total_order_operations` | `fn total_order_operations(&self) -> u64` | `placements + modifications + cancellations`. |
 | `current_otr` | `fn current_otr(&self) -> Decimal` | **Cumulative** ratio: `ops / trades` (trades floor 1). |
 | `window_otr` | `fn window_otr(&mut self, now: DateTime<Utc>, window_ms: u64) -> Decimal` | Evicts expired events, then sliding-window ratio. |
-| `window_otr_1min` | `fn window_otr_1min(&mut self, now) -> Decimal` | 1-minute window (`window_otr(now, 60_000)`). |
-| `window_otr_5min` | `fn window_otr_5min(&mut self, now) -> Decimal` | 5-minute window (`window_otr(now, 300_000)`). |
+| `window_otr_1min` | `fn window_otr_1min(&mut self, now, config: &OtrConfig) -> Decimal` | Short-term window = `config.window_1min_ms` (the enforced tier). |
+| `window_otr_5min` | `fn window_otr_5min(&mut self, now, config: &OtrConfig) -> Decimal` | Medium-term window = `config.window_5min_ms` (analysis-only; no enforcement path consults it). |
 | `is_breached` | `fn is_breached(&self, config: &OtrConfig) -> bool` | Cumulative OTR above `max_otr` after the grace period. |
 | `warning_ratio` | `fn warning_ratio(&self, config: &OtrConfig) -> Option<Decimal>` | `Some(otr)` when `warning_threshold < otr <= max_otr`. |
 | `event_count` | `fn event_count(&self) -> usize` | Number of events currently buffered. |
@@ -68,16 +68,16 @@ In `evaluate_core_checks` (full path), when the 1-minute window OTR exceeds `max
 - `halt_cooldown_ms` governs automatic resumption (0 = manual resume only).
 - A warning is emitted at `warning_threshold` (via `warning_ratio`) before the hard breach.
 
-The same enforcement applies per scrip (keyed by `InstrumentId`). `check_order_fast` skips
-the scrip OTR check and the warning zone — see
-[`docs/gaps/0003-check-order-fast-otr-divergence.md`](../gaps/0003-check-order-fast-otr-divergence.md).
+The same enforcement applies per scrip (keyed by `InstrumentId`). Since plan 0002 the fast
+path (`check_order_fast_checks`) enforces per-scrip OTR and the warning zone identically
+(record-and-check before approval), so both paths agree on scrip OTR breaches.
 
 ## Config knob caveat
 
-`OtrConfig::window_1min_ms` and `window_5min_ms` are **never consulted** by `otr.rs` or
-`engine.rs`: `window_otr_1min` / `window_otr_5min` hardcode `60_000` / `300_000` ms, and the
-engine enforces only the 1-minute window. Setting the config fields has no effect
-([`docs/gaps/0004-otr-window-config-dead.md`](../gaps/0004-otr-window-config-dead.md)).
+`OtrConfig::window_1min_ms` / `window_5min_ms` are consulted by both `otr.rs` and `engine.rs`:
+`window_otr_1min` / `window_otr_5min` read the configured window from `OtrConfig`, and the
+engine enforces the short-term `window_1min_ms` tier. `window_5min_ms` remains analysis-only
+(the engine has no medium-term enforcement tier).
 
 ## Zero-Floats Policy
 

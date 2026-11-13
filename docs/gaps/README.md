@@ -17,20 +17,21 @@ as gaps. Every gap below was verified against `src/` on the filing date (2026-11
 
 | # | Title | Severity | Status | Plan |
 |---|-------|----------|--------|------|
-| 0001 | Market-order price collar (`price_collar_bps`) declared but never enforced | Medium | open | [0002](../plans/0002-close-declared-unenforced-risk-controls.md) |
-| 0002 | Reduce-only mode (`GlobalState::ReduceOnly`) not enforced by any check path | High | open | [0002](../plans/0002-close-declared-unenforced-risk-controls.md) |
-| 0003 | `check_order_fast` skips per-scrip OTR check, warning zone, and cooldown auto-resume | Medium | open | [0002](../plans/0002-close-declared-unenforced-risk-controls.md) |
-| 0004 | OTR window config knobs (`window_1min_ms` / `window_5min_ms`) never consulted | Low | open | [0002](../plans/0002-close-declared-unenforced-risk-controls.md) |
+| — | — | — | — | — |
 
 ## Closed Gaps
 
 | # | Title | Severity | Status | Closed In |
 |---|-------|----------|--------|-----------|
-| — | — | — | — | — |
+| 0001 | Market-order price collar (`price_collar_bps`) declared but never enforced | Medium | closed | Commit `9a0bc59` (`feat(risk): enforce reduce-only, price collar, fast-path OTR parity, OTR windows (plan 0002)`) |
+| 0002 | Reduce-only mode (`GlobalState::ReduceOnly`) not enforced by any check path | High | closed | Commit `9a0bc59` |
+| 0003 | `check_order_fast` skips per-scrip OTR check, warning zone, and cooldown auto-resume | Medium | closed | Commit `9a0bc59` |
+| 0004 | OTR window config knobs (`window_1min_ms` / `window_5min_ms`) never consulted | Low | closed | Commit `9a0bc59` |
 
 ## Verification
 
 Each gap was filed only after grepping `src/` for the exact identifiers. There are no
 `TODO` / `FIXME` / `stub` / `unimplemented` markers anywhere in `src/` (verified
 2026-11-12); the gaps below are behavioral — declared configuration or API surface that no
-check path actually enforces.
+check path actually enforces. All four behavioral gaps were closed 2026-11-13 under plan
+0002 with TDD tests in `tests/plan0002_tests.rs`.

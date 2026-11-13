@@ -49,11 +49,13 @@ Test inventory (all under `tests/`, parallel to `src/`):
 - `proptest_tests.rs` — property-based randomized order streams and edge cases
   (regressions captured in `tests/proptest_tests.proptest-regressions`).
 - `tool_hints_tests.rs` — exhaustive `risk_classification` and `mcp_key()` tests.
+- `plan0002_tests.rs` — plan 0002 (2026-11-13): reduce-only enforcement on every path,
+  market-order price collar, `check_order_fast` per-scrip OTR / cooldown parity, and
+  configured OTR windows (15 tests).
 
-## Open future work
+## Closed gaps
 
-All open items now live in [`docs/gaps/`](../gaps/README.md) — currently four
-source-verified gaps: unenforced `price_collar_bps` (0001), unenforced reduce-only mode
-(0002), `check_order_fast` scrip-OTR divergence (0003), and dead OTR window config knobs
-(0004). The gaps are collected under
-[`docs/plans/0002-close-declared-unenforced-risk-controls.md`](../plans/0002-close-declared-unenforced-risk-controls.md).
+All previously open gaps are closed (2026-11-13, plan 0002, commit `9a0bc59`):
+unenforced `price_collar_bps` (0001), unenforced reduce-only mode (0002),
+`check_order_fast` scrip-OTR divergence (0003), and dead OTR window config knobs (0004).
+The `docs/gaps/README.md` Closed table records each with its closing commit.

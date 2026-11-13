@@ -1,45 +1,57 @@
 # HANDOFF — tantra-risk
 
-**Status**: Docs batch complete — former `docs/roadmap/` dismantled into
-`docs/design/` + `docs/gaps/` + `docs/plans/`; all design docs rewritten to match source.
-**Date**: 2026-11-12 · Repo: `tantra-risk` · Branch: `main`
+**Status**: Plan 0002 complete — all four declared-but-unenforced risk controls
+implemented, tested, and closed (gaps 0001–0004).
+**Date**: 2026-11-13 · Repo: `tantra-risk` · Branch: `main`
 
 ## Phase / Slice Status
 
-- **Docs rewritten against source** (docs-only, no `.rs` touched): `architecture.md` and all
-  `code-*.md` reference docs now state actual structs/enums/signatures; the incorrect
-  `ReduceOnly`/`Halted` on `AlgoRegistrationStatus`, the non-existent `algo_id` format regex,
-  the fake `risk_refusals`/`risk_approvals`/`algo_halted`/`kill_switch_activated` counters,
-  the non-existent `global_kill_switch()` method, and the `Emergency` tool hint are all gone.
-- **Gaps filed (source-verified)**: 0001 `price_collar_bps` unenforced · 0002 reduce-only not
-  enforced · 0003 `check_order_fast` skips per-scrip OTR check / warning zone / cooldown
-  auto-resume · 0004 `window_1min_ms`/`window_5min_ms` config knobs never consulted.
-- **Plans**: 0001 (tool-call annotation hooks, commit `5b00cda`) kept in Implemented table;
-  new `0002-close-declared-unenforced-risk-controls` collects gaps 0001–0004.
-- **`docs/roadmap/` removed**; completed milestones folded into
-  `docs/design/implementation-record.md` (test inventory + verification commands) and
-  `code-migration-map.md` (honba-mon → tantra-risk mapping kept).
+- **Plan 0002 shipped** (commit `9a0bc59`): 
+  - **Reduce-only enforced (0002, High)**: `GlobalState::ReduceOnly` refuses
+    order-opening BUYs on both `evaluate_core_checks` and `check_order_fast_checks`
+    (`RiskRefusal::ReduceOnlyViolation`), refuses `ModifyOrder` and new position sizing
+    (`SizingRiskRefusal::ReduceOnlyViolation`), allows reducing SELLs and cancels.
+  - **Price collar enforced (0001, Med)**: `RiskLimits::price_collar_bps` applied on both
+    paths — market orders whose worst-case band-edge fill exceeds `reference ± collar`
+    → new `RiskRefusal::PriceCollarViolation`.
+  - **Fast-path OTR parity (0003, Med)**: `check_order_fast` now records-and-checks the
+    per-scrip OTR before approval (`ScripOtrBreached`), logs the OTR warning zone, and
+    auto-resumes halted algos after `halt_cooldown_ms`.
+  - **OTR windows live (0004, Low)**: `window_otr_1min`/`window_otr_5min` read
+    `OtrConfig::{window_1min_ms, window_5min_ms}`; engine enforces the configured
+    short-term window (5-min stays analysis-only, documented).
+- **API change**: `check_order_fast` gains required `side: OrderSide` (side-aware reduce-only
+  and collar). FFI (`tantra-ffi`) updated in lockstep: pyclass + codegen stub + `_tantra.pyi`
+  + `python/tests/test_risk.py` (new reduce-only test); `cargo check` green there.
+- **Docs**: gap docs 0001–0004 and plan 0002 removed from `docs/{gaps,plans}/`; README
+  indexes moved rows to Closed/Implemented (closing commit `9a0bc59`); `docs/design/*`
+  rewritten to match the enforced behavior.
 
 ## Decisions & Discoveries
 
-- `tantra-exec/src/executor.rs::RiskGatedExecutor` and `tantra-exec/src/router/src/otr.rs`
-  do not exist (verified `tantra-exec/src/` absent) — all such cross-references dropped.
-- `RiskRefusal::ReduceOnlyViolation` is never constructed; `GlobalState::ReduceOnly` checked
-  nowhere; `window_otr_1min`/`window_otr_5min` hardcode 60s/300s (config fields dead).
-- `Instant::now()` in `engine.rs` is latency-metrics only; no `Utc::now()`/`SystemTime::now()`
-  in `src/`.
+- Reduce-only is **position-free by design**: the gate has no position book, so "reduces
+  risk" is the documented close-long approximation (SELL passes / BUY refused). Position-aware
+  reduction remains the job of the layer that owns positions (`tantra-ledger`/execution).
+- `check_order_fast` intentionally stays zero-allocation (only branch + existing
+  `HashMap::get_mut`); the Prometheus `set_otr_ratio` gauge remains full-path-only.
+- Collar semantics: the pure gate cannot know a market order's fill, so the worst-case
+  band-edge fill (band.upper for BUY / band.lower for SELL) is collared against the band
+  reference price; skipped when no band or a zero reference exists.
+- `tantra-runtime-strategy/tests/runner_risk.rs` references `RiskRefusal::{InstrumentUnknown,
+  ReduceOnly, PriceCollar, TradingHalted}` which never existed — pre-existing broken test
+  binary (matches root T0.6 "runtime test-binary compiles OOM"); untouched.
 
 ## Immediate Next Step
 
-Implement plan 0002, phase 1 (gap 0002, high severity): enforce `GlobalState::ReduceOnly` in
-`evaluate_core_checks` + `check_order_fast_checks` with `RiskRefusal::ReduceOnlyViolation`,
-TDD with a failing test in `tests/` first. Then gaps 0001 → 0003 → 0004.
+- None in `tantra-risk` — T1 track (plan 0002) is complete and the gaps index is clean.
+- Optional future: wire a 5-minute OTR enforcement tier (currently analysis-only) and a
+  position-aware reduce-only mode when a position book is available upstream.
 
 ## Operating Invariants
 
 - Canonical profile `prod`: `cargo build/check/test --profile prod`.
 - Tests live in `tests/` parallel to `src/`; no in-file `#[test]` blocks.
 - Zero-I/O domain purity: no `tokio`, no network/file I/O, no `Utc::now()` in `src/`.
-- Zero floats: all notional, price-band, loss, OTR calculations use `rust_decimal::Decimal`.
+- Zero floats: all notional, price-band, collar, loss, OTR calculations use `rust_decimal::Decimal`.
 - Latency SLO: `p99.99 < 15µs` via zero-allocation `RiskEngine::check_order_fast`.
-- `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` green.
+- `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --profile prod` green.

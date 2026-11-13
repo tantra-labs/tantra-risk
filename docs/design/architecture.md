@@ -49,6 +49,8 @@ synchronous — it cannot be bypassed by LLMs or strategies.
 route through `evaluate_core` → `evaluate_core_checks`. Checks execute in source order:
 
 1. **Global kill-switch** — `GlobalState::Halted` → `RiskRefusal::GlobalHalted`.
+1.25 **Reduce-only** — `GlobalState::ReduceOnly` refuses order-opening `Buy`
+    → `RiskRefusal::ReduceOnlyViolation`; `Sell` (close-long approximation) passes.
 1.5 **Market-wide index circuit breaker** — `market_circuit` with `resume_at`:
     rejects while `now < resume_at` or when `resume_at` is `None` (day-closing circuit)
     → `RiskRefusal::MarketCircuitHalt`.
@@ -64,6 +66,9 @@ route through `evaluate_core` → `evaluate_core_checks`. Checks execute in sour
     → `RiskRefusal::ScripOtrBreached`.
 4. **Price band** — limit price must fall within `price_bands[instrument]` when set
     → `RiskRefusal::PriceBandViolation`.
+4.5 **Market-order price collar** — for a market order (`limit_price == None`) with
+    `limits.price_collar_bps` set, the worst-case band-edge fill must stay within
+    `reference ± collar` → `RiskRefusal::PriceCollarViolation`.
 5. **Max quantity** — `limits.max_quantity_per_order` → `RiskRefusal::MaxQuantityExceeded`.
 5.5 **Exchange freeze limit** — `limits.freeze_limits[instrument]` → `RiskRefusal::FreezeLimitExceeded`.
 6. **Max notional** — `limits.max_notional_per_order`, evaluated at the limit price (or the
@@ -78,17 +83,14 @@ On success the timestamp is appended to `order_history`. Every refusal is record
 
 ### 4.2 `check_order_fast` — zero-allocation hot path
 
-`RiskEngine::check_order_fast(algo_id, instrument, quantity, limit_price, now)` executes
-the same rule set through `check_order_fast_checks` with `HashMap::get()` instead of
-`HashMap::entry()` to avoid allocations. It **diverges** from the full path by:
-
-- **skipping the per-scrip OTR circuit-breaker check** — the scrip placement is recorded
-  only *after* all other checks pass, and never compared against `max_otr`;
-- **skipping the OTR warning zone** (`warning_ratio`);
-- **skipping the halt cooldown auto-resume** — a halted algo is rejected unconditionally.
-
-These divergences are tracked in
-[`docs/gaps/0003-check-order-fast-otr-divergence.md`](../gaps/0003-check-order-fast-otr-divergence.md).
+`RiskEngine::check_order_fast(algo_id, instrument, side, quantity, limit_price, now)`
+executes the same rule set through `check_order_fast_checks` with `HashMap::get()` instead
+of `HashMap::entry()` to avoid allocations. Since plan 0002 it is behaviorally **parity**
+with the full path: per-scrip OTR is recorded and checked before approval
+(`ScripOtrBreached`), the OTR warning zone is logged, halted algos auto-resume after the
+cooldown, reduce-only refuses order-opening BUYs, and the market-order price collar applies.
+The only differences are the absence of Prometheus `set_otr_ratio` gauge updates on the hot
+path.
 
 ### 4.3 `check_decision` — closed `Decision` grammar
 
@@ -118,8 +120,9 @@ decisions into `risk_orders_evaluated_total{algo_id,result}`, rule breaches into
 `risk_breaches_total{algo_id,rule_name}`, and the live OTR into
 `risk_otr_current_ratio{algo_id,scrip}`.
 
-## 6. Open gaps
+## 6. Gaps
 
-See [`docs/gaps/README.md`](../gaps/README.md) — four source-verified gaps are filed
-(unenforced `price_collar_bps`, unenforced reduce-only mode, `check_order_fast` OTR
-divergence, dead OTR window config knobs).
+All four source-verified gaps (unenforced `price_collar_bps`, unenforced reduce-only mode,
+`check_order_fast` OTR divergence, dead OTR window config knobs) were closed 2026-11-13
+under plan 0002 (commit `9a0bc59`). See [`docs/gaps/README.md`](../gaps/README.md) — the
+Open table is empty; the Closed table records each with its closing commit.

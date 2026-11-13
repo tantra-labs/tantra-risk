@@ -19,12 +19,13 @@ hot path; `clippy::result_large_err` is consciously accepted at the crate level
 | `ScripOtrBreached` | `sebi_scrip_otr_breach` | `instrument: InstrumentId`, `current_otr: Decimal`, `max_otr: Decimal` |
 | `OtrBreached` | `sebi_otr_breach` | `algo_id: String`, `current_otr: Decimal`, `max_otr: Decimal` |
 | `PriceBandViolation` | `price_band_violation` | `price: Price`, `band: PriceBand` |
+| `PriceCollarViolation` | `price_collar_violation` | `instrument`, `implied_price: Price`, `reference_price: Price`, `collar_bps: u32` |
 | `MaxNotionalExceeded` | `max_notional_exceeded` | `requested: Decimal`, `limit: Decimal` |
 | `FreezeLimitExceeded` | `freeze_limit_exceeded` | `instrument: InstrumentId`, `requested: Quantity`, `limit: Quantity` |
 | `MaxQuantityExceeded` | `max_quantity_exceeded` | `requested: Quantity`, `limit: Quantity` |
 | `OrderRateExceeded` | `order_rate_exceeded` | `count: u32`, `limit: u32`, `window_ms: u64` |
 | `DailyLossExceeded` | `daily_loss_exceeded` | `current_loss: Decimal`, `limit: Decimal` |
-| `ReduceOnlyViolation` | `reduce_only_violation` | `details: String` (⚠ never constructed — see gap 0002) |
+| `ReduceOnlyViolation` | `reduce_only_violation` | `details: String` |
 | `PositionConcentrationExceeded` | `position_concentration_exceeded` | `instrument`, `position_value: Decimal`, `total_equity: Decimal`, `max_pct: Decimal` |
 | `MisLeverageExceeded` | `mis_leverage_exceeded` | `gross_exposure: Decimal`, `total_equity: Decimal`, `max_leverage: Decimal` |
 | `InvalidOrder` | `invalid_order` | `error: String` |
@@ -41,7 +42,7 @@ hot path; `clippy::result_large_err` is consciously accepted at the crate level
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum GlobalState {
     #[default] Active,
-    ReduceOnly,                          // declared; not enforced by any check path (gap 0002)
+    ReduceOnly, // order-opening BUYs refused on every path; SELL/cancel pass
     Halted { reason: String, halted_at: DateTime<Utc> },
 }
 ```
@@ -74,10 +75,13 @@ pub struct MarketCircuitHalt {
 
 ## State enforcement notes
 
-- `evaluate_core_checks` / `check_order_fast_checks` reject only on
-  `GlobalState::Halted` and `AlgoState::Halted`; `GlobalState::ReduceOnly` is never
-  checked and `RiskRefusal::ReduceOnlyViolation` is never produced
-  ([`docs/gaps/0002-reduce-only-not-enforced.md`](../gaps/0002-reduce-only-not-enforced.md)).
+- `GlobalState::Halted` rejects everything; `GlobalState::ReduceOnly` refuses
+  order-opening BUYs on both `evaluate_core_checks` and `check_order_fast_checks`, refuses
+  `ModifyOrder` and new position sizing (`validate_sizing_request`), and approves reducing
+  SELLs and cancels — all with `RiskRefusal::ReduceOnlyViolation` /
+  `SizingRiskRefusal::ReduceOnlyViolation` (plan 0002, gap 0002).
+- `AlgoState::Halted` rejects until `halt_cooldown_ms` elapses, then auto-resumes — identical
+  on both check paths (plan 0002, gap 0003).
 - State transitions are explicit methods on `RiskEngine` (`halt_global` / `resume_global` /
   `set_reduce_only` / `halt_algo` / `resume_algo` / `trigger_market_circuit` /
   `clear_market_circuit`) — see `code-engine.md`.
