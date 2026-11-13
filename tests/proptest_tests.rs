@@ -339,6 +339,7 @@ proptest! {
         let result_fast = engine_fast.check_order_fast(
             &algo_id,
             &req.instrument,
+            req.side,
             req.quantity,
             req.order_type.limit_price(),
             now,

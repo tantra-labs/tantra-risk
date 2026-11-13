@@ -113,6 +113,12 @@ pub enum SizingRiskRefusal {
         reason: String,
     },
 
+    /// Platform is in reduce-only mode; new position sizing is not permitted.
+    ReduceOnlyViolation {
+        /// Details
+        details: String,
+    },
+
     /// Underlying sizing calculation failed.
     CalculationError(String),
 }
@@ -193,6 +199,9 @@ impl fmt::Display for SizingRiskRefusal {
             Self::PlatformHalted { reason } => {
                 write!(f, "Platform is globally halted: {reason}")
             }
+            Self::ReduceOnlyViolation { details } => {
+                write!(f, "Reduce-only mode violation: {details}")
+            }
             Self::CalculationError(e) => {
                 write!(f, "Position sizing calculation error: {e}")
             }
@@ -216,6 +225,7 @@ impl SizingRiskRefusal {
             Self::InvalidEntryPrice { .. } => "invalid_entry_price",
             Self::InvalidStopLoss { .. } => "invalid_stop_loss",
             Self::PlatformHalted { .. } => "platform_halted",
+            Self::ReduceOnlyViolation { .. } => "reduce_only_violation",
             Self::CalculationError(_) => "calculation_error",
         }
     }

@@ -172,14 +172,20 @@ impl OtrTracker {
         ops / trades
     }
 
-    /// OTR over the 1-minute sliding window.
-    pub fn window_otr_1min(&mut self, now: DateTime<Utc>) -> Decimal {
-        self.window_otr(now, 60_000)
+    /// OTR over the short-term sliding window configured by
+    /// [`OtrConfig::window_1min_ms`]. This is the window the risk engine enforces.
+    pub fn window_otr_1min(&mut self, now: DateTime<Utc>, config: &OtrConfig) -> Decimal {
+        self.window_otr(now, config.window_1min_ms)
     }
 
-    /// OTR over the 5-minute sliding window.
-    pub fn window_otr_5min(&mut self, now: DateTime<Utc>) -> Decimal {
-        self.window_otr(now, 300_000)
+    /// OTR over the medium-term sliding window configured by
+    /// [`OtrConfig::window_5min_ms`].
+    ///
+    /// Analysis-only: no enforcement path currently consults the 5-minute tier
+    /// (`RiskEngine` enforces only the short-term window). Kept so configuring
+    /// `window_5min_ms` has a real observable effect instead of being dead config.
+    pub fn window_otr_5min(&mut self, now: DateTime<Utc>, config: &OtrConfig) -> Decimal {
+        self.window_otr(now, config.window_5min_ms)
     }
 
     /// Check if this algo has breached the OTR threshold (cumulative).

@@ -459,7 +459,14 @@ fn test_check_order_fast_all_refusal_variants() {
     // 1. Success path
     assert!(
         engine
-            .check_order_fast("fast-algo", &inst, Quantity::from_u64(10), None, now)
+            .check_order_fast(
+                "fast-algo",
+                &inst,
+                OrderSide::Buy,
+                Quantity::from_u64(10),
+                None,
+                now
+            )
             .is_ok()
     );
 
@@ -467,7 +474,14 @@ fn test_check_order_fast_all_refusal_variants() {
     let mut h_engine = engine.clone();
     h_engine.halt_global("Global halt test", now);
     assert!(matches!(
-        h_engine.check_order_fast("fast-algo", &inst, Quantity::from_u64(10), None, now),
+        h_engine.check_order_fast(
+            "fast-algo",
+            &inst,
+            OrderSide::Buy,
+            Quantity::from_u64(10),
+            None,
+            now
+        ),
         Err(RiskRefusal::GlobalHalted { .. })
     ));
 
@@ -475,7 +489,14 @@ fn test_check_order_fast_all_refusal_variants() {
     let mut a_engine = engine.clone();
     a_engine.halt_algo("fast-algo", "Algo halt test", now);
     assert!(matches!(
-        a_engine.check_order_fast("fast-algo", &inst, Quantity::from_u64(10), None, now),
+        a_engine.check_order_fast(
+            "fast-algo",
+            &inst,
+            OrderSide::Buy,
+            Quantity::from_u64(10),
+            None,
+            now
+        ),
         Err(RiskRefusal::AlgoHalted { .. })
     ));
 
@@ -485,6 +506,7 @@ fn test_check_order_fast_all_refusal_variants() {
         u_engine.check_order_fast(
             "unregistered-fast",
             &inst,
+            OrderSide::Buy,
             Quantity::from_u64(10),
             None,
             now
@@ -506,6 +528,7 @@ fn test_check_order_fast_all_refusal_variants() {
         pb_engine.check_order_fast(
             "fast-algo",
             &inst,
+            OrderSide::Buy,
             Quantity::from_u64(10),
             Some(Price::new(Decimal::from(4000))),
             now
@@ -517,7 +540,14 @@ fn test_check_order_fast_all_refusal_variants() {
     let mut q_engine = engine.clone();
     q_engine.limits.max_quantity_per_order = Some(Quantity::from_u64(100));
     assert!(matches!(
-        q_engine.check_order_fast("fast-algo", &inst, Quantity::from_u64(101), None, now),
+        q_engine.check_order_fast(
+            "fast-algo",
+            &inst,
+            OrderSide::Buy,
+            Quantity::from_u64(101),
+            None,
+            now
+        ),
         Err(RiskRefusal::MaxQuantityExceeded { .. })
     ));
 
@@ -528,7 +558,14 @@ fn test_check_order_fast_all_refusal_variants() {
         .freeze_limits
         .insert(inst.clone(), Quantity::from_u64(500));
     assert!(matches!(
-        f_engine.check_order_fast("fast-algo", &inst, Quantity::from_u64(501), None, now),
+        f_engine.check_order_fast(
+            "fast-algo",
+            &inst,
+            OrderSide::Buy,
+            Quantity::from_u64(501),
+            None,
+            now
+        ),
         Err(RiskRefusal::FreezeLimitExceeded { .. })
     ));
 
@@ -539,6 +576,7 @@ fn test_check_order_fast_all_refusal_variants() {
         n_engine.check_order_fast(
             "fast-algo",
             &inst,
+            OrderSide::Buy,
             Quantity::from_u64(100),
             Some(Price::new(Decimal::from(1500))), // Notional: 150,000 > 100,000
             now
@@ -551,7 +589,14 @@ fn test_check_order_fast_all_refusal_variants() {
     d_engine.limits.max_daily_loss = Some(Decimal::from(50_000));
     d_engine.daily_loss = Decimal::from(50_000);
     assert!(matches!(
-        d_engine.check_order_fast("fast-algo", &inst, Quantity::from_u64(10), None, now),
+        d_engine.check_order_fast(
+            "fast-algo",
+            &inst,
+            OrderSide::Buy,
+            Quantity::from_u64(10),
+            None,
+            now
+        ),
         Err(RiskRefusal::DailyLossExceeded { .. })
     ));
 }

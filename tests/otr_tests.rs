@@ -41,12 +41,12 @@ fn test_sliding_window_otr() {
     }
 
     // At t=55s, 1-min window should show 10 ops, 1 trade = OTR 10
-    let otr = tracker.window_otr_1min(t55);
+    let otr = tracker.window_otr_1min(t55, &OtrConfig::default());
     assert_eq!(otr, Decimal::from(10));
 
     // At t=61 seconds, the t=0 events fall out of the 1-minute window
     let t61 = base + chrono::Duration::seconds(61);
-    let otr = tracker.window_otr_1min(t61);
+    let otr = tracker.window_otr_1min(t61, &OtrConfig::default());
     // Only the 5 orders at t=55s remain in window, no trades = OTR 5
     assert_eq!(otr, Decimal::from(5));
 }
@@ -254,12 +254,18 @@ fn test_window_otr_5min_and_boundary_eviction() {
     // Check at t=200s (both events in 5m window)
     let t200s = base + chrono::Duration::seconds(200);
     // 2 ops, 1 fill -> OTR 2
-    assert_eq!(tracker.window_otr_5min(t200s), Decimal::from(2));
+    assert_eq!(
+        tracker.window_otr_5min(t200s, &OtrConfig::default()),
+        Decimal::from(2)
+    );
 
     // Check at t=301s (5 minutes and 1 second later):
     // t=0 event evicted (> 300,000ms), only t=180s event remains: 1 op, 1 trade -> OTR 1
     let t301s = base + chrono::Duration::seconds(301);
-    assert_eq!(tracker.window_otr_5min(t301s), Decimal::from(1));
+    assert_eq!(
+        tracker.window_otr_5min(t301s, &OtrConfig::default()),
+        Decimal::from(1)
+    );
 }
 
 #[test]

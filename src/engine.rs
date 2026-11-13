@@ -9,8 +9,8 @@ use rust_decimal::prelude::ToPrimitive;
 use std::collections::{HashMap, VecDeque};
 
 use tantra_core::{
-    Decision, Exchange, FillReport, InstrumentId, OrderRequest, PositionSizingRequest, Price,
-    PriceBand, Quantity, RiskBudget, TraceContext,
+    Decision, Exchange, FillReport, InstrumentId, OrderRequest, OrderSide, PositionSizingRequest,
+    Price, PriceBand, Quantity, RiskBudget, TraceContext,
 };
 
 use crate::error::RiskError;
@@ -332,14 +332,14 @@ impl RiskEngine {
         match decision {
             Decision::PlaceOrder {
                 symbol,
-                side: _,
+                side,
                 qty,
                 price_limit,
                 algo_id,
                 ..
             } => {
                 let inst = InstrumentId::new(Exchange::Nse, symbol.clone());
-                self.evaluate_core(algo_id, &inst, *qty, *price_limit, now, None)
+                self.evaluate_core(algo_id, &inst, *side, *qty, *price_limit, now, None)
             }
             Decision::Hold { .. } => Ok(()),
             Decision::CancelAll { algo_id, .. } => {
@@ -367,6 +367,15 @@ impl RiskEngine {
             } => {
                 // Modifications are recorded as order operations
                 let _ = instrument;
+                if self.global_state == GlobalState::ReduceOnly {
+                    let r = RiskRefusal::ReduceOnlyViolation {
+                        details: "platform is reduce-only; order modifications are not permitted \
+                                  (risk reduction cannot be verified without order state)"
+                            .to_string(),
+                    };
+                    self.record_refusal(&r);
+                    return Err(r);
+                }
                 self.record_cancellation(algo_id, now);
                 Ok(())
             }
@@ -405,6 +414,7 @@ impl RiskEngine {
         self.evaluate_core(
             &order.algo_id,
             &order.instrument,
+            order.side,
             order.quantity,
             price_limit,
             now,
@@ -414,10 +424,12 @@ impl RiskEngine {
 
     /// Core synchronous risk evaluation pipeline instrumented with OpenTelemetry
     /// tracing spans propagating W3C [`TraceContext`] from `tantra-core`.
+    #[allow(clippy::too_many_arguments)]
     fn evaluate_core(
         &mut self,
         algo_id: &str,
         instrument: &InstrumentId,
+        side: OrderSide,
         quantity: Quantity,
         limit_price: Option<Price>,
         now: DateTime<Utc>,
@@ -442,6 +454,7 @@ impl RiskEngine {
             otel.kind = "internal",
             algo_id = %algo_id,
             instrument = %instrument,
+            side = ?side,
             quantity = %quantity,
             w3c.traceparent = %traceparent,
             trace_id = %trace_id_hex,
@@ -449,7 +462,8 @@ impl RiskEngine {
         );
         let _enter = span.enter();
 
-        let result = self.evaluate_core_checks(algo_id, instrument, quantity, limit_price, now);
+        let result =
+            self.evaluate_core_checks(algo_id, instrument, side, quantity, limit_price, now);
 
         let duration_secs = start_time.elapsed().as_secs_f64();
         let metrics = crate::metrics::global_metrics();
@@ -473,6 +487,7 @@ impl RiskEngine {
         &mut self,
         algo_id: &str,
         instrument: &InstrumentId,
+        side: OrderSide,
         quantity: Quantity,
         limit_price: Option<Price>,
         now: DateTime<Utc>,
@@ -484,6 +499,22 @@ impl RiskEngine {
             };
             self.record_refusal(&r);
             return Err(r);
+        }
+
+        // 1.25 Reduce-Only Mode Check
+        if self.global_state == GlobalState::ReduceOnly {
+            // The gate is a pure, position-free pre-trade backstop: it cannot
+            // verify against a real position book, so "reduces risk" is the
+            // documented close-long approximation (Sell reduces / Buy opens).
+            if side == OrderSide::Buy {
+                let r = RiskRefusal::ReduceOnlyViolation {
+                    details:
+                        "platform is reduce-only; BUY (order-opening) orders are not permitted"
+                            .to_string(),
+                };
+                self.record_refusal(&r);
+                return Err(r);
+            }
         }
 
         // 1.5 Market-Wide Index Circuit Breaker Check
@@ -554,8 +585,8 @@ impl RiskEngine {
         // Record this order placement before checking OTR
         tracker.record_order_placement(now);
 
-        // Check sliding-window OTR over 1-minute window
-        let window_otr = tracker.window_otr_1min(now);
+        // Check sliding-window OTR over the configured short-term window
+        let window_otr = tracker.window_otr(now, self.otr_config.window_1min_ms);
         crate::metrics::global_metrics().set_otr_ratio(
             algo_id,
             "*",
@@ -593,7 +624,7 @@ impl RiskEngine {
         // Record this order placement before checking scrip OTR
         scrip_tracker.record_order_placement(now);
 
-        let scrip_window_otr = scrip_tracker.window_otr_1min(now);
+        let scrip_window_otr = scrip_tracker.window_otr(now, self.otr_config.window_1min_ms);
         crate::metrics::global_metrics().set_otr_ratio(
             algo_id,
             &instrument.symbol,
@@ -627,6 +658,42 @@ impl RiskEngine {
                     let r = RiskRefusal::PriceBandViolation { price, band: *band };
                     self.record_refusal(&r);
                     return Err(r);
+                }
+            }
+        }
+
+        // 4.5 Market-Order Price Collar Check
+        if limit_price.is_none() {
+            if let Some(collar_bps) = self.limits.price_collar_bps {
+                if let Some(band) = self.price_bands.get(instrument) {
+                    let reference = band.reference_price.0;
+                    // A zero reference is a degenerate band; there is nothing to
+                    // collar against, so the check is skipped.
+                    if reference > Decimal::ZERO {
+                        let collar_frac = Decimal::from(collar_bps) / Decimal::from(10_000);
+                        let (implied_price, in_collar) = match side {
+                            // A market BUY could fill as high as the band's upper edge.
+                            OrderSide::Buy => (
+                                band.upper,
+                                band.upper.0 <= reference * (Decimal::ONE + collar_frac),
+                            ),
+                            // A market SELL could fill as low as the band's lower edge.
+                            OrderSide::Sell => (
+                                band.lower,
+                                band.lower.0 >= reference * (Decimal::ONE - collar_frac),
+                            ),
+                        };
+                        if !in_collar {
+                            let r = RiskRefusal::PriceCollarViolation {
+                                instrument: instrument.clone(),
+                                implied_price,
+                                reference_price: band.reference_price,
+                                collar_bps,
+                            };
+                            self.record_refusal(&r);
+                            return Err(r);
+                        }
+                    }
                 }
             }
         }
@@ -733,16 +800,19 @@ impl RiskEngine {
     /// `HashMap::entry()` to avoid allocations.
     ///
     /// Target latency: < 15µs per order check.
+    #[allow(clippy::too_many_arguments)]
     pub fn check_order_fast(
         &mut self,
         algo_id: &str,
         instrument: &InstrumentId,
+        side: OrderSide,
         quantity: Quantity,
         limit_price: Option<Price>,
         now: DateTime<Utc>,
     ) -> Result<(), RiskRefusal> {
         let start_time = std::time::Instant::now();
-        let result = self.check_order_fast_checks(algo_id, instrument, quantity, limit_price, now);
+        let result =
+            self.check_order_fast_checks(algo_id, instrument, side, quantity, limit_price, now);
 
         let duration_secs = start_time.elapsed().as_secs_f64();
         let metrics = crate::metrics::global_metrics();
@@ -765,6 +835,7 @@ impl RiskEngine {
         &mut self,
         algo_id: &str,
         instrument: &InstrumentId,
+        side: OrderSide,
         quantity: Quantity,
         limit_price: Option<Price>,
         now: DateTime<Utc>,
@@ -773,6 +844,16 @@ impl RiskEngine {
         if let GlobalState::Halted { reason, .. } = &self.global_state {
             let r = RiskRefusal::GlobalHalted {
                 reason: reason.clone(),
+            };
+            self.record_refusal(&r);
+            return Err(r);
+        }
+
+        // 1.25 Reduce-Only Mode Check (parity with evaluate_core_checks)
+        if self.global_state == GlobalState::ReduceOnly && side == OrderSide::Buy {
+            let r = RiskRefusal::ReduceOnlyViolation {
+                details: "platform is reduce-only; BUY (order-opening) orders are not permitted"
+                    .to_string(),
             };
             self.record_refusal(&r);
             return Err(r);
@@ -803,14 +884,32 @@ impl RiskEngine {
             }
         }
 
-        // 2. Per-Algo ID Halt Check (get() - no allocation)
-        if let Some(AlgoState::Halted { reason, .. }) = self.algo_states.get(algo_id) {
-            let r = RiskRefusal::AlgoHalted {
-                algo_id: algo_id.to_string(),
-                reason: reason.clone(),
-            };
-            self.record_refusal(&r);
-            return Err(r);
+        // 2. Per-Algo ID Halt Check (get() - no allocation; cooldown auto-resume
+        //    parity with evaluate_core_checks)
+        if let Some(AlgoState::Halted { reason, halted_at }) = self.algo_states.get(algo_id) {
+            // Auto-resume if cooldown period has expired
+            if self.otr_config.halt_cooldown_ms > 0 {
+                let cooldown =
+                    chrono::Duration::milliseconds(self.otr_config.halt_cooldown_ms as i64);
+                if now >= *halted_at + cooldown {
+                    self.resume_algo(algo_id);
+                    tracing::info!("Auto-resumed algo '{algo_id}' after OTR cooldown period");
+                } else {
+                    let r = RiskRefusal::AlgoHalted {
+                        algo_id: algo_id.to_string(),
+                        reason: reason.clone(),
+                    };
+                    self.record_refusal(&r);
+                    return Err(r);
+                }
+            } else {
+                let r = RiskRefusal::AlgoHalted {
+                    algo_id: algo_id.to_string(),
+                    reason: reason.clone(),
+                };
+                self.record_refusal(&r);
+                return Err(r);
+            }
         }
 
         // 2.5 SEBI Algo ID Registry Check (get() - no allocation)
@@ -835,8 +934,8 @@ impl RiskEngine {
         };
         tracker.record_order_placement(now);
 
-        // Check sliding-window OTR over 1-minute window
-        let window_otr = tracker.window_otr_1min(now);
+        // Check sliding-window OTR over the configured short-term window
+        let window_otr = tracker.window_otr(now, self.otr_config.window_1min_ms);
         if tracker.total_order_operations() >= self.otr_config.min_orders_before_enforcement
             && window_otr > self.otr_config.max_otr
         {
@@ -854,6 +953,48 @@ impl RiskEngine {
             return Err(r);
         }
 
+        // Check warning zone (parity with evaluate_core_checks)
+        if let Some(warning) = tracker.warning_ratio(&self.otr_config) {
+            tracing::warn!(
+                "Algo '{algo_id}' OTR in warning zone: {warning} > {}",
+                self.otr_config.warning_threshold
+            );
+        }
+
+        // 3.5 Per-Scrip OTR Circuit Breaker (parity with evaluate_core_checks:
+        //     record-and-check BEFORE approval so a breaching scrip is refused)
+        let scrip_tracker = match self.scrip_trackers.get_mut(instrument) {
+            Some(t) => t,
+            None => {
+                self.scrip_trackers
+                    .insert(instrument.clone(), OtrTracker::new());
+                self.scrip_trackers.get_mut(instrument).unwrap()
+            }
+        };
+        scrip_tracker.record_order_placement(now);
+
+        let scrip_window_otr = scrip_tracker.window_otr(now, self.otr_config.window_1min_ms);
+        if scrip_tracker.total_order_operations() >= self.otr_config.min_orders_before_enforcement
+            && scrip_window_otr > self.otr_config.max_otr
+        {
+            // Automatically halt trading on this scrip
+            self.halt_algo(
+                algo_id,
+                format!(
+                    "Scrip OTR breached for {} (ratio: {scrip_window_otr})",
+                    instrument.symbol
+                ),
+                now,
+            );
+            let r = RiskRefusal::ScripOtrBreached {
+                instrument: instrument.clone(),
+                current_otr: scrip_window_otr,
+                max_otr: self.otr_config.max_otr,
+            };
+            self.record_refusal(&r);
+            return Err(r);
+        }
+
         // 4. Circuit Limits & Price Band Check (get() - no allocation)
         if let Some(band) = self.price_bands.get(instrument) {
             if let Some(price) = limit_price {
@@ -861,6 +1002,42 @@ impl RiskEngine {
                     let r = RiskRefusal::PriceBandViolation { price, band: *band };
                     self.record_refusal(&r);
                     return Err(r);
+                }
+            }
+        }
+
+        // 4.5 Market-Order Price Collar Check (parity with evaluate_core_checks)
+        if limit_price.is_none() {
+            if let Some(collar_bps) = self.limits.price_collar_bps {
+                if let Some(band) = self.price_bands.get(instrument) {
+                    let reference = band.reference_price.0;
+                    // A zero reference is a degenerate band; there is nothing to
+                    // collar against, so the check is skipped.
+                    if reference > Decimal::ZERO {
+                        let collar_frac = Decimal::from(collar_bps) / Decimal::from(10_000);
+                        let (implied_price, in_collar) = match side {
+                            // A market BUY could fill as high as the band's upper edge.
+                            OrderSide::Buy => (
+                                band.upper,
+                                band.upper.0 <= reference * (Decimal::ONE + collar_frac),
+                            ),
+                            // A market SELL could fill as low as the band's lower edge.
+                            OrderSide::Sell => (
+                                band.lower,
+                                band.lower.0 >= reference * (Decimal::ONE - collar_frac),
+                            ),
+                        };
+                        if !in_collar {
+                            let r = RiskRefusal::PriceCollarViolation {
+                                instrument: instrument.clone(),
+                                implied_price,
+                                reference_price: band.reference_price,
+                                collar_bps,
+                            };
+                            self.record_refusal(&r);
+                            return Err(r);
+                        }
+                    }
                 }
             }
         }
@@ -950,16 +1127,9 @@ impl RiskEngine {
             }
         }
 
-        // All checks passed! Record order in rate limiter and scrip tracker
-        let scrip_tracker = match self.scrip_trackers.get_mut(instrument) {
-            Some(t) => t,
-            None => {
-                self.scrip_trackers
-                    .insert(instrument.clone(), OtrTracker::new());
-                self.scrip_trackers.get_mut(instrument).unwrap()
-            }
-        };
-        scrip_tracker.record_order_placement(now);
+        // All checks passed! Record order in rate limiter only (algo and scrip
+        // trackers were already recorded before their respective OTR checks).
+        self.order_history.push_back(now);
 
         Ok(())
     }
@@ -1046,6 +1216,17 @@ impl RiskEngine {
             return Err(RiskError::SizingRefusal(
                 SizingRiskRefusal::PlatformHalted {
                     reason: reason.clone(),
+                },
+            ));
+        }
+
+        // Reduce-only: sizing always establishes new exposure, so it is refused
+        // the same way the order paths refuse order-opening BUY orders.
+        if self.global_state == GlobalState::ReduceOnly {
+            return Err(RiskError::SizingRefusal(
+                SizingRiskRefusal::ReduceOnlyViolation {
+                    details: "platform is reduce-only; new position sizing is not permitted"
+                        .to_string(),
                 },
             ));
         }

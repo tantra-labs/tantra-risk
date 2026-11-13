@@ -71,6 +71,19 @@ pub enum RiskRefusal {
         band: PriceBand,
     },
 
+    /// Market order's worst-case fill price exceeds the configured price collar
+    /// around the band reference price (`RiskLimits::price_collar_bps`).
+    PriceCollarViolation {
+        /// Instrument being traded
+        instrument: InstrumentId,
+        /// Worst-case band-edge fill price that triggered the collar
+        implied_price: Price,
+        /// Band reference price the collar is anchored to
+        reference_price: Price,
+        /// Configured collar in basis points (1 bp = 0.01%)
+        collar_bps: u32,
+    },
+
     /// Single order notional value exceeds configured limit.
     MaxNotionalExceeded {
         /// Requested order notional
@@ -197,6 +210,16 @@ impl fmt::Display for RiskRefusal {
                 "Price band violation: order price {} outside circuit bounds [{}, {}]",
                 price, band.lower, band.upper
             ),
+            Self::PriceCollarViolation {
+                instrument,
+                implied_price,
+                reference_price,
+                collar_bps,
+            } => write!(
+                f,
+                "Market order price collar violation for {instrument}: worst-case fill {} deviates more than {collar_bps} bps from reference {}",
+                implied_price, reference_price
+            ),
             Self::MaxNotionalExceeded { requested, limit } => write!(
                 f,
                 "Order notional {} INR exceeds ceiling {} INR",
@@ -276,6 +299,7 @@ impl RiskRefusal {
             Self::OtrBreached { .. } => "sebi_otr_breach",
             Self::ScripOtrBreached { .. } => "sebi_scrip_otr_breach",
             Self::PriceBandViolation { .. } => "price_band_violation",
+            Self::PriceCollarViolation { .. } => "price_collar_violation",
             Self::MaxNotionalExceeded { .. } => "max_notional_exceeded",
             Self::MaxQuantityExceeded { .. } => "max_quantity_exceeded",
             Self::FreezeLimitExceeded { .. } => "freeze_limit_exceeded",

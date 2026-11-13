@@ -125,6 +125,7 @@ fn bench_check_order_fast(c: &mut Criterion) {
             let result = engine.check_order_fast(
                 black_box("bench-algo"),
                 black_box(&InstrumentId::new(Exchange::Nse, "RELIANCE")),
+                black_box(OrderSide::Buy),
                 black_box(Quantity::from_u64(10)),
                 black_box(None),
                 black_box(now),
