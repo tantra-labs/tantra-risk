@@ -17,7 +17,7 @@ as gaps. Every gap below was verified against `src/` on the filing date (2026-11
 
 | # | Title | Severity | Status | Plan |
 |---|-------|----------|--------|------|
-| — | — | — | — | — |
+| [0005](0005-stop-protection-risk-validation.md) | No stop-protection (SL/TSL) risk validation — mandatory SL, SL-distance band, SL-within-collar, max-loss-per-strategy, TSL no-widening (Elephant Edge EE+) | High | Open | root `docs/plans/0005` |
 
 ## Closed Gaps
 
