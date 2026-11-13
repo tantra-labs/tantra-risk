@@ -47,7 +47,7 @@ with `GlobalState::Active`, empty trackers, and `RiskLimits::default()` / `OtrCo
 |--------|---------|
 | `halt_global(reason: impl Into<String>, timestamp: DateTime<Utc>)` | Trigger platform-wide emergency kill-switch (`GlobalState::Halted`). |
 | `resume_global()` | Resume from global halt (`GlobalState::Active`). |
-| `set_reduce_only()` | Set `GlobalState::ReduceOnly` — order-opening BUYs, modifies, and new position sizing are refused everywhere; reducing SELLs and cancels pass. |
+| `set_reduce_only()` | Set `GlobalState::ReduceOnly` — order-opening BUYs, modifies, and new position sizing are refused everywhere; reducing SELLs and cancels pass. Semantics: [`code-reduce-only.md`](code-reduce-only.md). |
 | `trigger_market_circuit(index_symbol, stage_pct, resume_at: Option<DateTime<Utc>>, halted_at)` | Trip market-wide index circuit (10/15/20%). |
 | `clear_market_circuit()` | Clear market-wide circuit breaker. |
 | `halt_algo(algo_id: &str, reason: impl Into<String>, timestamp: DateTime<Utc>)` | Halt one algo ID (`AlgoState::Halted`). |
@@ -98,7 +98,8 @@ Called by `check_order` / `check_decision` (via `evaluate_core`, which additiona
 OpenTelemetry `risk_eval_core` span propagating the W3C `TraceContext` and records metrics):
 
 1. Global kill-switch (`GlobalHalted`)
-1.25 Reduce-only — order-opening BUY refused (`ReduceOnlyViolation`); SELL passes (close-long approximation)
+1.25 Reduce-only — order-opening BUY refused (`ReduceOnlyViolation`); SELL passes (position-free
+  close-long approximation — see [`code-reduce-only.md`](code-reduce-only.md))
 1.5 Market-wide index circuit breaker (`MarketCircuitHalt`)
 2. Per-algo halt with auto-resume cooldown (`halt_cooldown_ms`; `AlgoHalted`)
 2.5 SEBI algo registry (`AlgoNotRegistered`)

@@ -31,7 +31,9 @@ implemented, tested, and closed (gaps 0001–0004).
 
 - Reduce-only is **position-free by design**: the gate has no position book, so "reduces
   risk" is the documented close-long approximation (SELL passes / BUY refused). Position-aware
-  reduction remains the job of the layer that owns positions (`tantra-ledger`/execution).
+  reduction is enforced upstream by `tantra-runtime-api-rest::orders::state_refusal`
+  (ADR 0018). Full decision record: `docs/design/code-reduce-only.md`; workspace ADR:
+  `docs/design/0002-reduce-only-contract.md` (repo root).
 - `check_order_fast` intentionally stays zero-allocation (only branch + existing
   `HashMap::get_mut`); the Prometheus `set_otr_ratio` gauge remains full-path-only.
 - Collar semantics: the pure gate cannot know a market order's fill, so the worst-case

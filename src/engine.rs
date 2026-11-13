@@ -502,19 +502,19 @@ impl RiskEngine {
         }
 
         // 1.25 Reduce-Only Mode Check
-        if self.global_state == GlobalState::ReduceOnly {
-            // The gate is a pure, position-free pre-trade backstop: it cannot
-            // verify against a real position book, so "reduces risk" is the
-            // documented close-long approximation (Sell reduces / Buy opens).
-            if side == OrderSide::Buy {
-                let r = RiskRefusal::ReduceOnlyViolation {
-                    details:
-                        "platform is reduce-only; BUY (order-opening) orders are not permitted"
-                            .to_string(),
-                };
-                self.record_refusal(&r);
-                return Err(r);
-            }
+        // The gate is a pure, position-free pre-trade backstop: it cannot
+        // verify against a real position book, so "reduces risk" is the
+        // documented close-long approximation (Sell reduces / Buy opens).
+        // Decision record: docs/design/code-reduce-only.md (workspace ADR
+        // 0002-reduce-only-contract.md); position-aware reduction is enforced
+        // upstream by tantra-runtime-api-rest::orders::state_refusal.
+        if self.global_state == GlobalState::ReduceOnly && side == OrderSide::Buy {
+            let r = RiskRefusal::ReduceOnlyViolation {
+                details: "platform is reduce-only; BUY (order-opening) orders are not permitted"
+                    .to_string(),
+            };
+            self.record_refusal(&r);
+            return Err(r);
         }
 
         // 1.5 Market-Wide Index Circuit Breaker Check

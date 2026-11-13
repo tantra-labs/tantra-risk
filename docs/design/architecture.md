@@ -50,7 +50,8 @@ route through `evaluate_core` → `evaluate_core_checks`. Checks execute in sour
 
 1. **Global kill-switch** — `GlobalState::Halted` → `RiskRefusal::GlobalHalted`.
 1.25 **Reduce-only** — `GlobalState::ReduceOnly` refuses order-opening `Buy`
-    → `RiskRefusal::ReduceOnlyViolation`; `Sell` (close-long approximation) passes.
+    → `RiskRefusal::ReduceOnlyViolation`; `Sell` passes (position-free close-long
+    approximation — see [`code-reduce-only.md`](code-reduce-only.md)).
 1.5 **Market-wide index circuit breaker** — `market_circuit` with `resume_at`:
     rejects while `now < resume_at` or when `resume_at` is `None` (day-closing circuit)
     → `RiskRefusal::MarketCircuitHalt`.

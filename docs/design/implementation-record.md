@@ -58,4 +58,7 @@ Test inventory (all under `tests/`, parallel to `src/`):
 All previously open gaps are closed (2026-11-13, plan 0002, commit `9a0bc59`):
 unenforced `price_collar_bps` (0001), unenforced reduce-only mode (0002),
 `check_order_fast` scrip-OTR divergence (0003), and dead OTR window config knobs (0004).
-The `docs/gaps/README.md` Closed table records each with its closing commit.
+The `docs/gaps/README.md` Closed table records each with its closing commit. The reduce-only
+and price-collar semantics are recorded as a design decision in
+[`code-reduce-only.md`](code-reduce-only.md) (workspace ADR
+`docs/design/0002-reduce-only-contract.md`).

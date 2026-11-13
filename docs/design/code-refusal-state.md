@@ -79,7 +79,8 @@ pub struct MarketCircuitHalt {
   order-opening BUYs on both `evaluate_core_checks` and `check_order_fast_checks`, refuses
   `ModifyOrder` and new position sizing (`validate_sizing_request`), and approves reducing
   SELLs and cancels — all with `RiskRefusal::ReduceOnlyViolation` /
-  `SizingRiskRefusal::ReduceOnlyViolation` (plan 0002, gap 0002).
+  `SizingRiskRefusal::ReduceOnlyViolation` (plan 0002, gap 0002; semantics +
+  position-free approximation: [`code-reduce-only.md`](code-reduce-only.md)).
 - `AlgoState::Halted` rejects until `halt_cooldown_ms` elapses, then auto-resumes — identical
   on both check paths (plan 0002, gap 0003).
 - State transitions are explicit methods on `RiskEngine` (`halt_global` / `resume_global` /
