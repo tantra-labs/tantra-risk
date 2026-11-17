@@ -36,6 +36,7 @@ pub mod refusal;
 pub mod sizing_gate;
 pub mod state;
 pub mod tool_hints;
+pub mod trade_plan_gate;
 
 pub use algo_registry::AlgoIdRegistry;
 pub use engine::RiskEngine;
@@ -47,3 +48,4 @@ pub use refusal::RiskRefusal;
 pub use sizing_gate::{SizingRiskRefusal, validate_sizing_request};
 pub use state::{AlgoState, GlobalState};
 pub use tool_hints::{ToolRiskHint, risk_classification};
+pub use trade_plan_gate::{StopProtectionConfig, validate_stop_update, validate_trade_plan};

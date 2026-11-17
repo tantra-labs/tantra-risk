@@ -5,6 +5,8 @@
 //!
 //! Enforces:
 //! - Aggregate portfolio risk percentage caps (e.g. <= 5% equity at risk)
+//! - Position weight caps (`allocated_notional / equity <= max_weight_pct`)
+//! - ADV20 participation caps (`quantity / adv20 <= max_adv_pct`)
 //! - Instrument lot size multiple conformity and positive quantity bounds
 //! - Exchange scrip freeze limits
 //! - Maximum position notional cash caps
@@ -119,6 +121,24 @@ pub enum SizingRiskRefusal {
         details: String,
     },
 
+    /// Sized position weight (`allocated_notional / equity`) exceeds the
+    /// configured `max_weight_pct` cap.
+    MaxWeightExceeded {
+        /// Resulting position weight (fraction of equity)
+        weight_pct: Decimal,
+        /// Configured maximum position weight
+        max_weight_pct: Decimal,
+    },
+
+    /// Sized quantity consumes more than the allowed share of the 20-day
+    /// average daily volume.
+    MaxAdvParticipationExceeded {
+        /// Resulting share of ADV20 (fraction)
+        participation_pct: Decimal,
+        /// Configured maximum share of ADV20
+        max_adv_pct: Decimal,
+    },
+
     /// Underlying sizing calculation failed.
     CalculationError(String),
 }
@@ -134,8 +154,8 @@ impl fmt::Display for SizingRiskRefusal {
             } => {
                 write!(
                     f,
-                    "Aggregate portfolio risk cap exceeded: requested {requested_risk_pct} > max {max_portfolio_risk_pct} (risk at stake: {} INR, equity: {} INR)",
-                    risk_at_stake.amount, equity.amount
+                    "Aggregate portfolio risk cap exceeded: requested {requested_risk_pct} > max {max_portfolio_risk_pct} (risk at stake: {} {}, equity: {} {})",
+                    risk_at_stake.amount, risk_at_stake.currency, equity.amount, equity.currency
                 )
             }
             Self::NonLotMultiple { quantity, lot_size } => {
@@ -202,6 +222,24 @@ impl fmt::Display for SizingRiskRefusal {
             Self::ReduceOnlyViolation { details } => {
                 write!(f, "Reduce-only mode violation: {details}")
             }
+            Self::MaxWeightExceeded {
+                weight_pct,
+                max_weight_pct,
+            } => {
+                write!(
+                    f,
+                    "Position weight exceeded: {weight_pct} > max {max_weight_pct}"
+                )
+            }
+            Self::MaxAdvParticipationExceeded {
+                participation_pct,
+                max_adv_pct,
+            } => {
+                write!(
+                    f,
+                    "ADV20 participation exceeded: {participation_pct} > max {max_adv_pct}"
+                )
+            }
             Self::CalculationError(e) => {
                 write!(f, "Position sizing calculation error: {e}")
             }
@@ -226,6 +264,8 @@ impl SizingRiskRefusal {
             Self::InvalidStopLoss { .. } => "invalid_stop_loss",
             Self::PlatformHalted { .. } => "platform_halted",
             Self::ReduceOnlyViolation { .. } => "reduce_only_violation",
+            Self::MaxWeightExceeded { .. } => "max_weight_exceeded",
+            Self::MaxAdvParticipationExceeded { .. } => "max_adv_participation_exceeded",
             Self::CalculationError(_) => "calculation_error",
         }
     }
@@ -342,6 +382,45 @@ pub fn validate_sizing_request(
                     equity: budget.equity,
                 },
             ));
+        }
+    }
+
+    // 6.5 Re-validate the position weight cap: `allocated_notional / equity`
+    //     must not exceed `max_weight_pct`. This is an independent gate-level
+    //     check over the computed result, so a cap that the core sizing step
+    //     treats as a no-op (e.g. `max_weight_pct >= 1`) still cannot pass.
+    let max_weight = budget.max_weight_pct.or(request.risk_budget.max_weight_pct);
+    if let Some(max_weight_pct) = max_weight {
+        if equity > Decimal::ZERO {
+            let weight_pct = sizing_result.allocated_notional.amount / equity;
+            if weight_pct > max_weight_pct {
+                return Err(RiskError::SizingRefusal(
+                    SizingRiskRefusal::MaxWeightExceeded {
+                        weight_pct,
+                        max_weight_pct,
+                    },
+                ));
+            }
+        }
+    }
+
+    // 6.6 Re-validate the ADV20 participation cap: `quantity / adv20` must not
+    //     exceed `max_adv_pct`. Requires the request to carry `adv20`.
+    let max_adv = budget.max_adv_pct.or(request.risk_budget.max_adv_pct);
+    if let Some(max_adv_pct) = max_adv {
+        if let Some(adv20) = request.adv20 {
+            let adv20_val = adv20.value();
+            if adv20_val > Decimal::ZERO {
+                let participation_pct = sizing_result.quantity.value() / adv20_val;
+                if participation_pct > max_adv_pct {
+                    return Err(RiskError::SizingRefusal(
+                        SizingRiskRefusal::MaxAdvParticipationExceeded {
+                            participation_pct,
+                            max_adv_pct,
+                        },
+                    ));
+                }
+            }
         }
     }
 

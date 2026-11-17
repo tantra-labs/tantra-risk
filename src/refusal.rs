@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use tantra_core::{InstrumentId, Price, PriceBand, Quantity};
+use tantra_core::{InstrumentId, Money, Price, PriceBand, Quantity};
 
 /// Typed refusal reason from the risk gate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -156,6 +156,57 @@ pub enum RiskRefusal {
         max_leverage: Decimal,
     },
 
+    /// A trade plan carries no initial stop, or a stop on the wrong side of the
+    /// entry (mandatory stop-protection rule).
+    MissingStopProtection {
+        /// Explanation of why the stop protection is missing/invalid
+        reason: String,
+    },
+
+    /// Initial stop is closer to the entry than `min_sl_atr × ATR` (too tight to
+    /// be a credible protective stop).
+    StopTooTight {
+        /// Entry-to-stop distance
+        stop_dist: Decimal,
+        /// Minimum permitted stop distance
+        min_sl_dist: Decimal,
+    },
+
+    /// Initial stop is farther from the entry than the maximum stop distance
+    /// band (`max_sl_pct` of entry or `max_stop_adr_mult × ADR%`).
+    StopTooWide {
+        /// Entry-to-stop distance
+        stop_dist: Decimal,
+        /// Maximum permitted stop distance
+        max_sl_dist: Decimal,
+    },
+
+    /// Initial stop sits outside the reference ± price-collar band.
+    StopOutsidePriceCollar {
+        /// Stop price
+        stop: Price,
+        /// Band reference price the collar is anchored to
+        reference: Price,
+        /// Configured collar in basis points (1 bp = 0.01%)
+        collar_bps: Decimal,
+    },
+
+    /// Planned worst-case loss breaches the strategy's max-loss risk budget.
+    MaxLossExceeded {
+        /// Planned capital at risk
+        risk_at_stake: Money,
+        /// Configured maximum loss
+        max_loss: Money,
+    },
+
+    /// A trailing-stop update would widen the stop (loosen the protective stop).
+    StopWideningDenied {
+        /// Current stop price
+        current_stop: Price,
+        /// Requested new stop price
+        new_stop: Price,
+    },
+
     /// Order failed structural or tick validation.
     InvalidOrder {
         /// Description of failure
@@ -281,6 +332,46 @@ impl fmt::Display for RiskRefusal {
                 gross_exposure / total_equity,
                 max_leverage
             ),
+            Self::MissingStopProtection { reason } => {
+                write!(f, "Missing or invalid stop protection: {reason}")
+            }
+            Self::StopTooTight {
+                stop_dist,
+                min_sl_dist,
+            } => write!(
+                f,
+                "Initial stop too tight: distance {stop_dist} below minimum {min_sl_dist}"
+            ),
+            Self::StopTooWide {
+                stop_dist,
+                max_sl_dist,
+            } => write!(
+                f,
+                "Initial stop too wide: distance {stop_dist} above maximum {max_sl_dist}"
+            ),
+            Self::StopOutsidePriceCollar {
+                stop,
+                reference,
+                collar_bps,
+            } => write!(
+                f,
+                "Initial stop {stop} sits outside the {collar_bps} bps price collar around reference {reference}"
+            ),
+            Self::MaxLossExceeded {
+                risk_at_stake,
+                max_loss,
+            } => write!(
+                f,
+                "Planned max loss {} {} exceeds configured max loss {} {}",
+                risk_at_stake.amount, risk_at_stake.currency, max_loss.amount, max_loss.currency
+            ),
+            Self::StopWideningDenied {
+                current_stop,
+                new_stop,
+            } => write!(
+                f,
+                "Trailing stop may not widen: new stop {new_stop} loosens current stop {current_stop}"
+            ),
             Self::InvalidOrder { error } => write!(f, "Invalid order: {error}"),
         }
     }
@@ -308,6 +399,12 @@ impl RiskRefusal {
             Self::ReduceOnlyViolation { .. } => "reduce_only_violation",
             Self::PositionConcentrationExceeded { .. } => "position_concentration_exceeded",
             Self::MisLeverageExceeded { .. } => "mis_leverage_exceeded",
+            Self::MissingStopProtection { .. } => "missing_stop_protection",
+            Self::StopTooTight { .. } => "stop_too_tight",
+            Self::StopTooWide { .. } => "stop_too_wide",
+            Self::StopOutsidePriceCollar { .. } => "stop_outside_price_collar",
+            Self::MaxLossExceeded { .. } => "max_loss_exceeded",
+            Self::StopWideningDenied { .. } => "stop_widening_denied",
             Self::InvalidOrder { .. } => "invalid_order",
         }
     }

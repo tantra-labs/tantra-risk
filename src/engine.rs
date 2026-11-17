@@ -15,6 +15,7 @@ use tantra_core::{
 
 use crate::error::RiskError;
 use crate::sizing_gate::SizingRiskRefusal;
+use crate::trade_plan_gate::{StopProtectionConfig, validate_stop_update, validate_trade_plan};
 
 use crate::algo_registry::AlgoIdRegistry;
 use crate::limits::RiskLimits;
@@ -53,6 +54,8 @@ pub struct RiskEngine {
     pub order_history: VecDeque<DateTime<Utc>>,
     /// Cumulative daily realized loss (positive number representing loss in INR)
     pub daily_loss: Decimal,
+    /// Stop-protection configuration for trade-plan validation
+    pub stop_protection: StopProtectionConfig,
 }
 
 impl Default for RiskEngine {
@@ -72,6 +75,7 @@ impl Default for RiskEngine {
             price_bands: HashMap::new(),
             order_history: VecDeque::new(),
             daily_loss: Decimal::ZERO,
+            stop_protection: StopProtectionConfig::default(),
         }
     }
 }
@@ -94,7 +98,19 @@ impl RiskEngine {
             price_bands: HashMap::new(),
             order_history: VecDeque::new(),
             daily_loss: Decimal::ZERO,
+            stop_protection: StopProtectionConfig::default(),
         }
+    }
+
+    /// Configure stop-protection validation parameters for trade plans.
+    pub fn with_stop_protection(mut self, config: StopProtectionConfig) -> Self {
+        self.stop_protection = config;
+        self
+    }
+
+    /// The engine's current stop-protection configuration.
+    pub fn stop_protection(&self) -> &StopProtectionConfig {
+        &self.stop_protection
     }
 
     /// Trigger platform-wide emergency kill switch.
@@ -1239,5 +1255,50 @@ impl RiskEngine {
         }
 
         crate::sizing_gate::validate_sizing_request(request, &effective_budget)
+    }
+
+    /// Synchronously validate a trade plan's stop protection.
+    ///
+    /// Runs [`validate_trade_plan`] with the engine's configured
+    /// `price_collar_bps` (when present) and the engine's stop-protection
+    /// configuration. Pure, synchronous, `Result<(), RiskRefusal>` on the same
+    /// check-path style as the order checks.
+    pub fn check_trade_plan(
+        &mut self,
+        plan: &tantra_core::trade_plan::TradePlan,
+        reference: Price,
+        now: DateTime<Utc>,
+    ) -> Result<(), RiskRefusal> {
+        let collar_bps = self.limits.price_collar_bps.map(Decimal::from);
+        let result = validate_trade_plan(
+            plan,
+            reference,
+            None,
+            None,
+            collar_bps,
+            &self.stop_protection,
+        );
+        if let Err(refusal) = &result {
+            self.record_refusal(refusal);
+        }
+        let _ = now;
+        result
+    }
+
+    /// Synchronously validate a trailing-stop update (no-widening TSL rule).
+    ///
+    /// Long stops must tighten upward (`new >= current`); short stops must
+    /// tighten downward (`new <= current`). Any widening request is refused.
+    pub fn check_stop_update(
+        &mut self,
+        side: OrderSide,
+        current_stop: Price,
+        new_stop: Price,
+    ) -> Result<(), RiskRefusal> {
+        let result = validate_stop_update(side, current_stop, new_stop);
+        if let Err(refusal) = &result {
+            self.record_refusal(refusal);
+        }
+        result
     }
 }
