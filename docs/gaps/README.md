@@ -17,12 +17,13 @@ as gaps. Every gap below was verified against `src/` on the filing date (2026-11
 
 | # | Title | Severity | Status | Plan |
 |---|-------|----------|--------|------|
-| [0005](0005-stop-protection-risk-validation.md) | No stop-protection (SL/TSL) risk validation — mandatory SL, SL-distance band, SL-within-collar, max-loss-per-strategy, TSL no-widening (Elephant Edge EE+) | High | Open | root `docs/plans/0005` |
+| _(none)_ | — | — | — | — |
 
 ## Closed Gaps
 
 | # | Title | Severity | Status | Closed In |
 |---|-------|----------|--------|-----------|
+| 0005 | No stop-protection (SL/TSL) risk validation — mandatory SL, SL-distance band, SL-within-collar, max-loss-per-strategy, TSL no-widening (Elephant Edge EE+) | High | closed | Closed 2026-11-17 (T12.6, `e9f8148`): `src/trade_plan_gate.rs` — `StopProtectionConfig` + `validate_trade_plan` (mandatory SL, `StopTooTight`/`StopTooWide` band vs ATR/ADR%, `StopOutsidePriceCollar`, `MaxLossExceeded`) + `validate_stop_update` (no-widening TSL on both sides); new `RiskRefusal` variants; `SizingRiskRefusal::{MaxWeightExceeded, MaxAdvParticipationExceeded}` + multi-currency (`Money.currency`) refusal formatting; `RiskEngine::check_trade_plan`/`check_stop_update` + `with_stop_protection`. Tests `trade_plan_gate_tests` (12) + `sizing_gate_weight_adv_tests` (7) + `trade_plan_gate_proptest` (2). |
 | 0001 | Market-order price collar (`price_collar_bps`) declared but never enforced | Medium | closed | Commit `9a0bc59` (`feat(risk): enforce reduce-only, price collar, fast-path OTR parity, OTR windows (plan 0002)`) |
 | 0002 | Reduce-only mode (`GlobalState::ReduceOnly`) not enforced by any check path | High | closed | Commit `9a0bc59` |
 | 0003 | `check_order_fast` skips per-scrip OTR check, warning zone, and cooldown auto-resume | Medium | closed | Commit `9a0bc59` |
