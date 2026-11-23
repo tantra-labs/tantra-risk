@@ -9,7 +9,7 @@ Per workspace rule `.agents/rules/gap-tracking.md`:
 
 | # | Title | Target Scope | Gaps | Status |
 |---|-------|--------------|------|--------|
-| — | — | — | — | — |
+| [0003](0003-design-review-2026-11.md) | tantra-risk design review (2026-11): fail-closed gating, bounded state & shared persistent limits | `tantra-risk` | 0006-0015 (+ plan-only R1-R4) | Proposed |
 
 ## Implemented Plans
 

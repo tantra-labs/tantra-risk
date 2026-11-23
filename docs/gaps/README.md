@@ -17,7 +17,16 @@ as gaps. Every gap below was verified against `src/` on the filing date (2026-11
 
 | # | Title | Severity | Status | Plan |
 |---|-------|----------|--------|------|
-| _(none)_ | — | — | — | — |
+| [0006](0006-fail-closed-reference-data.md) | Missing reference data fails open (no band / freeze / reference price / equity skips the check) | High | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0007](0007-modify-order-bypasses-halts.md) | `ModifyOrder` bypasses global halt, algo halt, registry and market-circuit checks | High | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0008](0008-bounded-rate-windows.md) | Unbounded `order_history`; O(n) OTR window scans | High | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0009](0009-trading-day-rollover.md) | No trading-day rollover; sticky global daily-loss halt | High | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0010](0010-shared-risk-state-and-kill-switch.md) | Per-process, multiplied risk state; kill switch not shared or persisted | High | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0011](0011-encapsulated-state-and-operator-audit.md) | `pub` mutable engine state; unaudited resume | Medium | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0012](0012-decision-exchange-and-algo-id-typing.md) | Hardcoded `Exchange::Nse`; stringly-typed algo and instrument identity | Medium | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0013](0013-metrics-label-cardinality.md) | Unbounded Prometheus label cardinality from `algo_id` / scrip | Medium | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0014](0014-otr-accounting-order.md) | Refused orders inflate OTR; scrip breach halts whole algo; slice ceil bug | Medium | open | [0003](../plans/0003-design-review-2026-11.md) |
+| [0015](0015-latency-sla-ci-gate.md) | Latency SLA and allocation claim not verified in CI | Medium | open | [0003](../plans/0003-design-review-2026-11.md) |
 
 ## Closed Gaps
 
