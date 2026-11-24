@@ -27,10 +27,10 @@ fn arb_order_type() -> impl Strategy<Value = OrderType> {
 /// Arbitrary instrument ID generator.
 fn arb_instrument_id() -> impl Strategy<Value = InstrumentId> {
     prop_oneof![
-        Just(InstrumentId::new(Exchange::Nse, "NIFTY")),
-        Just(InstrumentId::new(Exchange::Nse, "BANKNIFTY")),
-        Just(InstrumentId::new(Exchange::Nse, "RELIANCE")),
-        Just(InstrumentId::new(Exchange::Bse, "SENSEX")),
+        Just(InstrumentId::try_new(Exchange::Nse, "NIFTY").unwrap()),
+        Just(InstrumentId::try_new(Exchange::Nse, "BANKNIFTY").unwrap()),
+        Just(InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap()),
+        Just(InstrumentId::try_new(Exchange::Bse, "SENSEX").unwrap()),
     ]
 }
 
@@ -147,11 +147,11 @@ proptest! {
         engine.register_algo(algo_id.clone());
 
         // Set a tight price band: 1000 to 2000
-        let band = tantra_core::PriceBand::new(
+        let band = tantra_core::PriceBand::try_new(
             Price::from_rupees("1000.00").unwrap(),
             Price::from_rupees("2000.00").unwrap(),
             Price::from_rupees("1500.00").unwrap(),
-        );
+        ).unwrap();
         engine.set_price_band(instrument.clone(), band);
 
         // Price above band should be rejected

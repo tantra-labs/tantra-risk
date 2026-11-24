@@ -15,10 +15,10 @@ use tantra_risk::trade_plan_gate::{StopProtectionConfig, validate_trade_plan};
 /// Build a bare trade plan with the given entry/stop (Decimal-valued).
 fn make_plan_dec(side: OrderSide, entry: Decimal, stop: Decimal) -> TradePlan {
     TradePlan {
-        instrument: InstrumentId::new(Exchange::Nse, "RELIANCE"),
+        instrument: InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap(),
         side,
-        entry: Price::new(entry),
-        initial_stop: Price::new(stop),
+        entry: Price::try_new(entry).unwrap(),
+        initial_stop: Price::try_new(stop).unwrap(),
         risk_per_unit: (entry - stop).abs(),
         quantity: Quantity::from_u64(1),
         risk_at_stake: Money::inr((entry - stop).abs()),
@@ -59,7 +59,7 @@ proptest! {
             OrderSide::Sell => entry + dist,
         };
         let plan = make_plan_dec(side, Decimal::from(entry), Decimal::from(stop));
-        let reference = Price::new(Decimal::from(entry));
+        let reference = Price::try_new(Decimal::from(entry)).unwrap();
         let res = validate_trade_plan(
             &plan,
             reference,
@@ -97,7 +97,7 @@ proptest! {
         let plan = make_plan_dec(side, entry, stop);
         let res = validate_trade_plan(
             &plan,
-            Price::new(ref_dec),
+            Price::try_new(ref_dec).unwrap(),
             None,
             None,
             Some(Decimal::from(collar_bps)),

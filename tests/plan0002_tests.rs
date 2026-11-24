@@ -18,7 +18,7 @@ use tantra_risk::{
 };
 
 fn nse(symbol: &str) -> InstrumentId {
-    InstrumentId::new(Exchange::Nse, symbol)
+    InstrumentId::try_new(Exchange::Nse, symbol).unwrap()
 }
 
 fn market_order(inst: InstrumentId, side: OrderSide, algo_id: &str) -> OrderRequest {
@@ -41,12 +41,12 @@ fn make_sizing_request(
     let req = PositionSizingRequest::new(
         inst,
         PositionSide::Long,
-        Price::new(entry_p),
+        Price::try_new(entry_p).unwrap(),
         Money::inr(equity),
         budget.clone(),
         SizingMethod::FixedFractional { risk_pct },
     )
-    .with_stop_loss(Price::new(entry_p - Decimal::from(50)));
+    .with_stop_loss(Price::try_new(entry_p - Decimal::from(50)).unwrap());
     (req, budget)
 }
 
@@ -239,11 +239,12 @@ fn price_collar_within_collar_passes() {
     let inst = nse("RELIANCE");
     engine.set_price_band(
         inst.clone(),
-        PriceBand::new(
+        PriceBand::try_new(
             Price::from_rupees("2400.00").unwrap(),
             Price::from_rupees("2600.00").unwrap(),
             Price::from_rupees("2500.00").unwrap(),
-        ),
+        )
+        .unwrap(),
     );
 
     assert!(
@@ -271,11 +272,12 @@ fn price_collar_beyond_collar_refused() {
     let inst = nse("RELIANCE");
     engine.set_price_band(
         inst.clone(),
-        PriceBand::new(
+        PriceBand::try_new(
             Price::from_rupees("2000.00").unwrap(),
             Price::from_rupees("3000.00").unwrap(),
             Price::from_rupees("2500.00").unwrap(),
-        ),
+        )
+        .unwrap(),
     );
 
     // A market BUY could fill up at the upper band edge, beyond the collar.
@@ -300,11 +302,12 @@ fn price_collar_leaves_limit_orders_untouched() {
     let inst = nse("RELIANCE");
     engine.set_price_band(
         inst.clone(),
-        PriceBand::new(
+        PriceBand::try_new(
             Price::from_rupees("2000.00").unwrap(),
             Price::from_rupees("3000.00").unwrap(),
             Price::from_rupees("2500.00").unwrap(),
-        ),
+        )
+        .unwrap(),
     );
 
     // A limit order inside the band passes; the collar only gates market orders.
@@ -339,11 +342,12 @@ fn price_collar_skipped_without_band_or_on_fast_path_parity() {
     // With a band beyond the collar, the fast path enforces the same collar.
     engine.set_price_band(
         inst.clone(),
-        PriceBand::new(
+        PriceBand::try_new(
             Price::from_rupees("2000.00").unwrap(),
             Price::from_rupees("3000.00").unwrap(),
             Price::from_rupees("2500.00").unwrap(),
-        ),
+        )
+        .unwrap(),
     );
     assert!(matches!(
         engine.check_order_fast(

@@ -9,7 +9,7 @@ fn test_global_kill_switch() {
     engine.register_algo("algo-1");
     let now = Utc::now();
     let req = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "INFY"),
+        InstrumentId::try_new(Exchange::Nse, "INFY").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(10),
@@ -39,14 +39,14 @@ fn test_per_algo_halt() {
     let now = Utc::now();
 
     let req_bad = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "TCS"),
+        InstrumentId::try_new(Exchange::Nse, "TCS").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(5),
         "erratic-algo",
     );
     let req_good = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "TCS"),
+        InstrumentId::try_new(Exchange::Nse, "TCS").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(5),
@@ -68,14 +68,15 @@ fn test_circuit_limits_and_price_bands() {
     let mut engine = RiskEngine::default();
     engine.register_algo("algo-1");
     let now = Utc::now();
-    let inst = InstrumentId::new(Exchange::Nse, "RELIANCE");
+    let inst = InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap();
 
     // 20% price band: 2000 to 3000
-    let band = PriceBand::new(
+    let band = PriceBand::try_new(
         Price::from_rupees("2000.00").unwrap(),
         Price::from_rupees("3000.00").unwrap(),
         Price::from_rupees("2500.00").unwrap(),
-    );
+    )
+    .unwrap();
     engine.set_price_band(inst.clone(), band);
 
     // Within band
@@ -121,7 +122,7 @@ fn test_market_circuit_breaker() {
     engine.register_algo("algo-index");
     let now = Utc::now();
     let req = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "INFY"),
+        InstrumentId::try_new(Exchange::Nse, "INFY").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(10),
@@ -154,7 +155,7 @@ fn test_sebi_algo_id_validation() {
 
     // Empty algo_id violates SEBI Retail Algo circular
     let req_empty_algo = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "TCS"),
+        InstrumentId::try_new(Exchange::Nse, "TCS").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(10),
@@ -165,7 +166,7 @@ fn test_sebi_algo_id_validation() {
 
     // Zero quantity violates order rules
     let req_zero_qty = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "TCS"),
+        InstrumentId::try_new(Exchange::Nse, "TCS").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::ZERO,
@@ -182,7 +183,7 @@ fn test_sebi_algo_not_registered() {
 
     // Unregistered algo_id should be rejected
     let req = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "TCS"),
+        InstrumentId::try_new(Exchange::Nse, "TCS").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(10),
@@ -207,7 +208,7 @@ fn test_sebi_otr_circuit_breaker() {
     let mut engine = RiskEngine::new(limits, otr_config);
     engine.register_algo("high-frequency-spammer");
     let now = Utc::now();
-    let inst = InstrumentId::new(Exchange::Nse, "WIPRO");
+    let inst = InstrumentId::try_new(Exchange::Nse, "WIPRO").unwrap();
 
     let req = OrderRequest::new(
         inst.clone(),
@@ -257,7 +258,7 @@ fn test_order_rate_limiter() {
     engine.register_algo("algo-rate");
     let now = Utc::now();
     let req = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "SBIN"),
+        InstrumentId::try_new(Exchange::Nse, "SBIN").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(1),
@@ -282,7 +283,7 @@ fn test_otn_sliding_window() {
     let mut engine = RiskEngine::default();
     engine.register_algo("spammer");
     let now = Utc::now();
-    let inst = InstrumentId::new(Exchange::Nse, "WIPRO");
+    let inst = InstrumentId::try_new(Exchange::Nse, "WIPRO").unwrap();
 
     let req = OrderRequest::new(
         inst.clone(),
@@ -314,7 +315,7 @@ fn test_algo_registry_suspend() {
     let now = Utc::now();
 
     let req = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "TCS"),
+        InstrumentId::try_new(Exchange::Nse, "TCS").unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(10),
@@ -334,13 +335,14 @@ fn test_validate_price_band() {
     let mut engine = RiskEngine::default();
     engine.register_algo("algo-1");
     let _now = Utc::now();
-    let inst = InstrumentId::new(Exchange::Nse, "RELIANCE");
+    let inst = InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap();
 
-    let band = PriceBand::new(
+    let band = PriceBand::try_new(
         Price::from_rupees("2000.00").unwrap(),
         Price::from_rupees("3000.00").unwrap(),
         Price::from_rupees("2500.00").unwrap(),
-    );
+    )
+    .unwrap();
     engine.set_price_band(inst.clone(), band);
 
     // Price within band
@@ -363,7 +365,7 @@ fn test_validate_price_band() {
     ));
 
     // Instrument with no band - always valid
-    let unknown = InstrumentId::new(Exchange::Nse, "UNKNOWN");
+    let unknown = InstrumentId::try_new(Exchange::Nse, "UNKNOWN").unwrap();
     assert!(
         engine
             .validate_price_band(&unknown, Price::from_rupees("99999.00").unwrap())
@@ -385,7 +387,7 @@ fn test_scrip_otr_breach() {
     let mut engine = RiskEngine::new(limits, otr_config);
     engine.register_algo("spammer");
     let now = Utc::now();
-    let inst = InstrumentId::new(Exchange::Nse, "WIPRO");
+    let inst = InstrumentId::try_new(Exchange::Nse, "WIPRO").unwrap();
 
     let req = OrderRequest::new(
         inst.clone(),
@@ -413,11 +415,11 @@ fn test_scrip_otr_breach() {
 fn test_suggest_freeze_slices() {
     let mut limits = RiskLimits::default();
     limits.freeze_limits.insert(
-        InstrumentId::new(Exchange::Nse, "NIFTY"),
+        InstrumentId::try_new(Exchange::Nse, "NIFTY").unwrap(),
         Quantity::from_u64(1800),
     );
     let engine = RiskEngine::new(limits, OtrConfig::default());
-    let nifty = InstrumentId::new(Exchange::Nse, "NIFTY");
+    let nifty = InstrumentId::try_new(Exchange::Nse, "NIFTY").unwrap();
 
     // No freeze limit configured -> 1 slice
     let no_limit_engine = RiskEngine::new(RiskLimits::default(), OtrConfig::default());
@@ -469,7 +471,7 @@ fn test_auto_resume_after_cooldown() {
     let mut engine = RiskEngine::new(limits, otr_config);
     engine.register_algo("cooldown-algo");
     let now = Utc::now();
-    let inst = InstrumentId::new(Exchange::Nse, "TCS");
+    let inst = InstrumentId::try_new(Exchange::Nse, "TCS").unwrap();
 
     let req = OrderRequest::new(
         inst.clone(),

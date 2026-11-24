@@ -18,7 +18,7 @@ fn make_request(
     stop: Option<Decimal>,
     adv20: Option<Quantity>,
 ) -> (PositionSizingRequest, RiskBudget) {
-    let instrument = InstrumentId::new(Exchange::Nse, "RELIANCE");
+    let instrument = InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap();
     let equity = Money::inr(Decimal::from(EQUITY));
     let budget = RiskBudget::new(
         equity,
@@ -28,7 +28,7 @@ fn make_request(
     let mut request = PositionSizingRequest::new(
         instrument,
         PositionSide::Long,
-        Price::new(entry),
+        Price::try_new(entry).unwrap(),
         equity,
         budget.clone(),
         SizingMethod::FixedFractional {
@@ -36,7 +36,7 @@ fn make_request(
         },
     );
     if let Some(sl) = stop {
-        request = request.with_stop_loss(Price::new(sl));
+        request = request.with_stop_loss(Price::try_new(sl).unwrap());
     }
     if let Some(a20) = adv20 {
         request = request.with_adv20(a20);

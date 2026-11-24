@@ -19,10 +19,10 @@ fn make_plan(side: OrderSide, entry: u64, stop: u64) -> TradePlan {
     let entry_d = Decimal::from(entry);
     let stop_d = Decimal::from(stop);
     TradePlan {
-        instrument: InstrumentId::new(Exchange::Nse, "RELIANCE"),
+        instrument: InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap(),
         side,
-        entry: Price::new(entry_d),
-        initial_stop: Price::new(stop_d),
+        entry: Price::try_new(entry_d).unwrap(),
+        initial_stop: Price::try_new(stop_d).unwrap(),
         risk_per_unit: (entry_d - stop_d).abs(),
         quantity: Quantity::from_u64(1),
         risk_at_stake: Money::inr((entry_d - stop_d).abs()),
@@ -45,7 +45,7 @@ fn validate_trade_plan_accepts_a_valid_plan() {
     let plan = make_plan(OrderSide::Buy, 2500, 2450);
     let res = validate_trade_plan(
         &plan,
-        Price::new(Decimal::from(2500)),
+        Price::try_new(Decimal::from(2500)).unwrap(),
         Some(Decimal::from(100)),
         None,
         None,
@@ -57,7 +57,7 @@ fn validate_trade_plan_accepts_a_valid_plan() {
 #[test]
 fn missing_stop_protection_fires_for_zero_or_wrong_side_stop() {
     let config = StopProtectionConfig::default();
-    let reference = Price::new(Decimal::from(2500));
+    let reference = Price::try_new(Decimal::from(2500)).unwrap();
 
     // Zero stop.
     let zero_stop = make_plan(OrderSide::Buy, 2500, 0);
@@ -90,7 +90,7 @@ fn stop_too_tight_fires_when_below_min_sl_atr() {
     let plan = make_plan(OrderSide::Buy, 2500, 2495);
     let res = validate_trade_plan(
         &plan,
-        Price::new(Decimal::from(2500)),
+        Price::try_new(Decimal::from(2500)).unwrap(),
         Some(Decimal::from(100)),
         None,
         None,
@@ -111,7 +111,7 @@ fn stop_too_tight_fires_when_below_min_sl_atr() {
 #[test]
 fn stop_too_wide_fires_for_max_sl_pct_and_adr() {
     let config = StopProtectionConfig::default();
-    let reference = Price::new(Decimal::from(2500));
+    let reference = Price::try_new(Decimal::from(2500)).unwrap();
 
     // 2500 → 2300: dist 200 = 8% of entry > 2% → too wide.
     let wide_plan = make_plan(OrderSide::Buy, 2500, 2300);
@@ -132,7 +132,7 @@ fn stop_too_wide_fires_for_max_sl_pct_and_adr() {
     let adr_wide_plan = make_plan(OrderSide::Buy, 2000, 1970);
     let res = validate_trade_plan(
         &adr_wide_plan,
-        Price::new(Decimal::from(2000)),
+        Price::try_new(Decimal::from(2000)).unwrap(),
         None,
         Some(Decimal::ONE),
         None,
@@ -153,7 +153,7 @@ fn stop_too_wide_fires_for_max_sl_pct_and_adr() {
 #[test]
 fn stop_outside_price_collar_fires() {
     let config = StopProtectionConfig::default();
-    let reference = Price::new(Decimal::from(2500));
+    let reference = Price::try_new(Decimal::from(2500)).unwrap();
     let collar_bps = Some(Decimal::from(100)); // ±1% → [2475, 2525]
 
     // Stop 2460 sits 40 points below entry and 15 points below the lower band.
@@ -180,7 +180,7 @@ fn stop_outside_price_collar_fires() {
 
 #[test]
 fn max_loss_exceeded_fires_when_risk_breaches_strategy_budget() {
-    let reference = Price::new(Decimal::from(2500));
+    let reference = Price::try_new(Decimal::from(2500)).unwrap();
     let mut plan = make_plan(OrderSide::Buy, 2500, 2450);
     plan.risk_at_stake = Money::inr(Decimal::from(1000));
 
@@ -212,20 +212,31 @@ fn max_loss_exceeded_fires_when_risk_breaches_strategy_budget() {
 
 #[test]
 fn stop_update_long_tightens_upward_only() {
-    let current = Price::new(Decimal::from(100));
+    let current = Price::try_new(Decimal::from(100)).unwrap();
     // Tightening (or holding) is allowed for a long.
-    assert!(validate_stop_update(OrderSide::Buy, current, Price::new(Decimal::from(105))).is_ok());
+    assert!(
+        validate_stop_update(
+            OrderSide::Buy,
+            current,
+            Price::try_new(Decimal::from(105)).unwrap()
+        )
+        .is_ok()
+    );
     assert!(validate_stop_update(OrderSide::Buy, current, current).is_ok());
 
     // Widening (moving the stop down) is refused.
-    let res = validate_stop_update(OrderSide::Buy, current, Price::new(Decimal::from(95)));
+    let res = validate_stop_update(
+        OrderSide::Buy,
+        current,
+        Price::try_new(Decimal::from(95)).unwrap(),
+    );
     match res {
         Err(RiskRefusal::StopWideningDenied {
             current_stop,
             new_stop,
         }) => {
             assert_eq!(current_stop, current);
-            assert_eq!(new_stop, Price::new(Decimal::from(95)));
+            assert_eq!(new_stop, Price::try_new(Decimal::from(95)).unwrap());
         }
         other => panic!("expected StopWideningDenied, got {other:?}"),
     }
@@ -233,13 +244,24 @@ fn stop_update_long_tightens_upward_only() {
 
 #[test]
 fn stop_update_short_tightens_downward_only() {
-    let current = Price::new(Decimal::from(105));
+    let current = Price::try_new(Decimal::from(105)).unwrap();
     // Tightening (or holding) is allowed for a short.
-    assert!(validate_stop_update(OrderSide::Sell, current, Price::new(Decimal::from(100))).is_ok());
+    assert!(
+        validate_stop_update(
+            OrderSide::Sell,
+            current,
+            Price::try_new(Decimal::from(100)).unwrap()
+        )
+        .is_ok()
+    );
     assert!(validate_stop_update(OrderSide::Sell, current, current).is_ok());
 
     // Widening (moving the stop up) is refused.
-    let res = validate_stop_update(OrderSide::Sell, current, Price::new(Decimal::from(110)));
+    let res = validate_stop_update(
+        OrderSide::Sell,
+        current,
+        Price::try_new(Decimal::from(110)).unwrap(),
+    );
     assert!(matches!(res, Err(RiskRefusal::StopWideningDenied { .. })));
 }
 
@@ -254,7 +276,7 @@ fn engine_check_trade_plan_reuses_price_collar() {
     let outside = make_plan(OrderSide::Buy, 2500, 2460);
     let res = engine.check_trade_plan(
         &outside,
-        Price::new(Decimal::from(2500)),
+        Price::try_new(Decimal::from(2500)).unwrap(),
         chrono::Utc::now(),
     );
     assert!(matches!(
@@ -263,7 +285,11 @@ fn engine_check_trade_plan_reuses_price_collar() {
     ));
 
     let inside = make_plan(OrderSide::Buy, 2500, 2480);
-    let res = engine.check_trade_plan(&inside, Price::new(Decimal::from(2500)), chrono::Utc::now());
+    let res = engine.check_trade_plan(
+        &inside,
+        Price::try_new(Decimal::from(2500)).unwrap(),
+        chrono::Utc::now(),
+    );
     assert!(res.is_ok(), "expected in-collar plan to pass, got {res:?}");
 }
 
@@ -272,8 +298,8 @@ fn engine_check_stop_update_refuses_widening() {
     let mut engine = RiskEngine::default();
     let res = engine.check_stop_update(
         OrderSide::Buy,
-        Price::new(Decimal::from(100)),
-        Price::new(Decimal::from(90)),
+        Price::try_new(Decimal::from(100)).unwrap(),
+        Price::try_new(Decimal::from(90)).unwrap(),
     );
     assert!(matches!(res, Err(RiskRefusal::StopWideningDenied { .. })));
 
@@ -281,8 +307,8 @@ fn engine_check_stop_update_refuses_widening() {
         engine
             .check_stop_update(
                 OrderSide::Buy,
-                Price::new(Decimal::from(100)),
-                Price::new(Decimal::from(110)),
+                Price::try_new(Decimal::from(100)).unwrap(),
+                Price::try_new(Decimal::from(110)).unwrap(),
             )
             .is_ok()
     );
@@ -313,8 +339,8 @@ fn new_refusals_serde_roundtrip() {
             max_sl_dist: Decimal::from(2),
         },
         RiskRefusal::StopOutsidePriceCollar {
-            stop: Price::new(Decimal::from(100)),
-            reference: Price::new(Decimal::from(101)),
+            stop: Price::try_new(Decimal::from(100)).unwrap(),
+            reference: Price::try_new(Decimal::from(101)).unwrap(),
             collar_bps: Decimal::from(100),
         },
         RiskRefusal::MaxLossExceeded {
@@ -322,8 +348,8 @@ fn new_refusals_serde_roundtrip() {
             max_loss: Money::inr(Decimal::from(50)),
         },
         RiskRefusal::StopWideningDenied {
-            current_stop: Price::new(Decimal::from(100)),
-            new_stop: Price::new(Decimal::from(90)),
+            current_stop: Price::try_new(Decimal::from(100)).unwrap(),
+            new_stop: Price::try_new(Decimal::from(90)).unwrap(),
         },
     ];
     for refusal in cases {

@@ -259,7 +259,9 @@ impl fmt::Display for RiskRefusal {
             Self::PriceBandViolation { price, band } => write!(
                 f,
                 "Price band violation: order price {} outside circuit bounds [{}, {}]",
-                price, band.lower, band.upper
+                price,
+                band.lower(),
+                band.upper()
             ),
             Self::PriceCollarViolation {
                 instrument,

@@ -4,7 +4,7 @@ use tantra_core::{Decision, Exchange, InstrumentId, OrderSide, Quantity};
 use tantra_risk::{ToolRiskHint, risk_classification};
 
 fn any_instrument() -> InstrumentId {
-    InstrumentId::new(Exchange::Nse, "RELIANCE")
+    InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap()
 }
 
 #[test]

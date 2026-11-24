@@ -245,7 +245,7 @@ impl RiskEngine {
             .or_default();
         scrip_tracker.record_fill(fill.timestamp);
 
-        let turnover = fill.price.0 * fill.quantity.0;
+        let turnover = fill.price.value() * fill.quantity.value();
         *self
             .cumulative_turnover
             .entry(fill.algo_id.clone())
@@ -354,7 +354,16 @@ impl RiskEngine {
                 algo_id,
                 ..
             } => {
-                let inst = InstrumentId::new(Exchange::Nse, symbol.clone());
+                let inst = match InstrumentId::try_new(Exchange::Nse, symbol) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        let r = RiskRefusal::InvalidOrder {
+                            error: e.to_string(),
+                        };
+                        self.record_refusal(&r);
+                        return Err(r);
+                    }
+                };
                 self.evaluate_core(algo_id, &inst, *side, *qty, *price_limit, now, None)
             }
             Decision::Hold { .. } => Ok(()),
@@ -643,7 +652,7 @@ impl RiskEngine {
         let scrip_window_otr = scrip_tracker.window_otr(now, self.otr_config.window_1min_ms);
         crate::metrics::global_metrics().set_otr_ratio(
             algo_id,
-            &instrument.symbol,
+            instrument.symbol(),
             scrip_window_otr.to_f64().unwrap_or(0.0),
         );
         if scrip_tracker.total_order_operations() >= self.otr_config.min_orders_before_enforcement
@@ -654,7 +663,7 @@ impl RiskEngine {
                 algo_id,
                 format!(
                     "Scrip OTR breached for {} (ratio: {scrip_window_otr})",
-                    instrument.symbol
+                    instrument.symbol()
                 ),
                 now,
             );
@@ -682,7 +691,7 @@ impl RiskEngine {
         if limit_price.is_none() {
             if let Some(collar_bps) = self.limits.price_collar_bps {
                 if let Some(band) = self.price_bands.get(instrument) {
-                    let reference = band.reference_price.0;
+                    let reference = band.reference_price().value();
                     // A zero reference is a degenerate band; there is nothing to
                     // collar against, so the check is skipped.
                     if reference > Decimal::ZERO {
@@ -690,20 +699,20 @@ impl RiskEngine {
                         let (implied_price, in_collar) = match side {
                             // A market BUY could fill as high as the band's upper edge.
                             OrderSide::Buy => (
-                                band.upper,
-                                band.upper.0 <= reference * (Decimal::ONE + collar_frac),
+                                band.upper(),
+                                band.upper().value() <= reference * (Decimal::ONE + collar_frac),
                             ),
                             // A market SELL could fill as low as the band's lower edge.
                             OrderSide::Sell => (
-                                band.lower,
-                                band.lower.0 >= reference * (Decimal::ONE - collar_frac),
+                                band.lower(),
+                                band.lower().value() >= reference * (Decimal::ONE - collar_frac),
                             ),
                         };
                         if !in_collar {
                             let r = RiskRefusal::PriceCollarViolation {
                                 instrument: instrument.clone(),
                                 implied_price,
-                                reference_price: band.reference_price,
+                                reference_price: band.reference_price(),
                                 collar_bps,
                             };
                             self.record_refusal(&r);
@@ -716,7 +725,7 @@ impl RiskEngine {
 
         // 5. Hard Maximum Quantity Check
         if let Some(max_qty) = self.limits.max_quantity_per_order {
-            if quantity.0 > max_qty.0 {
+            if quantity.value() > max_qty.value() {
                 let r = RiskRefusal::MaxQuantityExceeded {
                     requested: quantity,
                     limit: max_qty,
@@ -728,7 +737,7 @@ impl RiskEngine {
 
         // 5.5 Exchange Freeze Limit Check (per-scrip quantity ceiling)
         if let Some(freeze_qty) = self.limits.freeze_limits.get(instrument) {
-            if quantity.0 > freeze_qty.0 {
+            if quantity.value() > freeze_qty.value() {
                 let r = RiskRefusal::FreezeLimitExceeded {
                     instrument: instrument.clone(),
                     requested: quantity,
@@ -742,10 +751,14 @@ impl RiskEngine {
         // 6. Hard Maximum Notional Check
         if let Some(max_notional) = self.limits.max_notional_per_order {
             let eval_price = limit_price
-                .or_else(|| self.price_bands.get(instrument).map(|b| b.reference_price))
+                .or_else(|| {
+                    self.price_bands
+                        .get(instrument)
+                        .map(|b| b.reference_price())
+                })
                 .unwrap_or(Price::ZERO);
 
-            let notional = eval_price.0 * quantity.0;
+            let notional = eval_price.value() * quantity.value();
             if notional > max_notional {
                 let r = RiskRefusal::MaxNotionalExceeded {
                     requested: notional,
@@ -998,7 +1011,7 @@ impl RiskEngine {
                 algo_id,
                 format!(
                     "Scrip OTR breached for {} (ratio: {scrip_window_otr})",
-                    instrument.symbol
+                    instrument.symbol()
                 ),
                 now,
             );
@@ -1026,7 +1039,7 @@ impl RiskEngine {
         if limit_price.is_none() {
             if let Some(collar_bps) = self.limits.price_collar_bps {
                 if let Some(band) = self.price_bands.get(instrument) {
-                    let reference = band.reference_price.0;
+                    let reference = band.reference_price().value();
                     // A zero reference is a degenerate band; there is nothing to
                     // collar against, so the check is skipped.
                     if reference > Decimal::ZERO {
@@ -1034,20 +1047,20 @@ impl RiskEngine {
                         let (implied_price, in_collar) = match side {
                             // A market BUY could fill as high as the band's upper edge.
                             OrderSide::Buy => (
-                                band.upper,
-                                band.upper.0 <= reference * (Decimal::ONE + collar_frac),
+                                band.upper(),
+                                band.upper().value() <= reference * (Decimal::ONE + collar_frac),
                             ),
                             // A market SELL could fill as low as the band's lower edge.
                             OrderSide::Sell => (
-                                band.lower,
-                                band.lower.0 >= reference * (Decimal::ONE - collar_frac),
+                                band.lower(),
+                                band.lower().value() >= reference * (Decimal::ONE - collar_frac),
                             ),
                         };
                         if !in_collar {
                             let r = RiskRefusal::PriceCollarViolation {
                                 instrument: instrument.clone(),
                                 implied_price,
-                                reference_price: band.reference_price,
+                                reference_price: band.reference_price(),
                                 collar_bps,
                             };
                             self.record_refusal(&r);
@@ -1060,7 +1073,7 @@ impl RiskEngine {
 
         // 5. Hard Maximum Quantity Check
         if let Some(max_qty) = self.limits.max_quantity_per_order {
-            if quantity.0 > max_qty.0 {
+            if quantity.value() > max_qty.value() {
                 let r = RiskRefusal::MaxQuantityExceeded {
                     requested: quantity,
                     limit: max_qty,
@@ -1072,7 +1085,7 @@ impl RiskEngine {
 
         // 5.5 Exchange Freeze Limit Check (get() - no allocation)
         if let Some(freeze_qty) = self.limits.freeze_limits.get(instrument) {
-            if quantity.0 > freeze_qty.0 {
+            if quantity.value() > freeze_qty.value() {
                 let r = RiskRefusal::FreezeLimitExceeded {
                     instrument: instrument.clone(),
                     requested: quantity,
@@ -1086,10 +1099,14 @@ impl RiskEngine {
         // 6. Hard Maximum Notional Check
         if let Some(max_notional) = self.limits.max_notional_per_order {
             let eval_price = limit_price
-                .or_else(|| self.price_bands.get(instrument).map(|b| b.reference_price))
+                .or_else(|| {
+                    self.price_bands
+                        .get(instrument)
+                        .map(|b| b.reference_price())
+                })
                 .unwrap_or(Price::ZERO);
 
-            let notional = eval_price.0 * quantity.0;
+            let notional = eval_price.value() * quantity.value();
             if notional > max_notional {
                 let r = RiskRefusal::MaxNotionalExceeded {
                     requested: notional,
@@ -1187,9 +1204,10 @@ impl RiskEngine {
     /// Returns `Ok(1)` if no freeze limit exists or the order is within the limit.
     pub fn suggest_freeze_slices(&self, instrument: &InstrumentId, quantity: Quantity) -> u32 {
         if let Some(freeze_qty) = self.limits.freeze_limits.get(instrument) {
-            if quantity.0 > freeze_qty.0 {
+            if quantity.value() > freeze_qty.value() {
                 // Ceiling division: ceil(quantity / freeze_qty)
-                let slices = (quantity.0 + freeze_qty.0 - Decimal::ONE) / freeze_qty.0;
+                let slices =
+                    (quantity.value() + freeze_qty.value() - Decimal::ONE) / freeze_qty.value();
                 return slices.to_i32().unwrap_or(i32::MAX).max(1) as u32;
             }
         }

@@ -25,18 +25,18 @@ fn make_sizing_request(
     risk_pct: Decimal,
     min_lot: u64,
 ) -> (PositionSizingRequest, RiskBudget) {
-    let inst = InstrumentId::new(Exchange::Nse, "RELIANCE");
+    let inst = InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap();
     let budget = RiskBudget::new(Money::inr(equity), risk_pct, Quantity::from_u64(min_lot));
     let mut req = PositionSizingRequest::new(
         inst,
         PositionSide::Long,
-        Price::new(entry_p),
+        Price::try_new(entry_p).unwrap(),
         Money::inr(equity),
         budget.clone(),
         SizingMethod::FixedFractional { risk_pct },
     );
     if let Some(s) = sl {
-        req = req.with_stop_loss(Price::new(s));
+        req = req.with_stop_loss(Price::try_new(s).unwrap());
     }
     (req, budget)
 }
@@ -132,7 +132,7 @@ fn test_sizing_freeze_limit_breached() {
     budget.freeze_limit_qty = Some(Quantity::from_u64(1800));
     req.risk_budget.freeze_limit_qty = budget.freeze_limit_qty;
 
-    let nse_rel = InstrumentId::new(Exchange::Nse, "RELIANCE");
+    let nse_rel = InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap();
     let refusal = SizingRiskRefusal::FreezeLimitBreached {
         instrument: nse_rel,
         requested: Quantity::from_u64(5000),
@@ -144,7 +144,7 @@ fn test_sizing_freeze_limit_breached() {
 
 #[test]
 fn test_sizing_invalid_entry_price_and_equity() {
-    let inst = InstrumentId::new(Exchange::Nse, "INFY");
+    let inst = InstrumentId::try_new(Exchange::Nse, "INFY").unwrap();
     let budget = RiskBudget::new(
         Money::inr(Decimal::from(100_000)),
         Decimal::from_str_radix("0.01", 10).unwrap(),
@@ -179,7 +179,7 @@ fn test_sizing_invalid_entry_price_and_equity() {
     let req_zero_eq = PositionSizingRequest::new(
         inst.clone(),
         PositionSide::Long,
-        Price::new(Decimal::from(1500)),
+        Price::try_new(Decimal::from(1500)).unwrap(),
         Money::inr(Decimal::ZERO),
         zero_eq_budget.clone(),
         SizingMethod::FixedFractional {
@@ -198,14 +198,14 @@ fn test_sizing_invalid_entry_price_and_equity() {
     let req_bad_sl = PositionSizingRequest::new(
         inst,
         PositionSide::Long,
-        Price::new(Decimal::from(1500)),
+        Price::try_new(Decimal::from(1500)).unwrap(),
         Money::inr(Decimal::from(100_000)),
         budget.clone(),
         SizingMethod::FixedFractional {
             risk_pct: Decimal::from_str_radix("0.01", 10).unwrap(),
         },
     )
-    .with_stop_loss(Price::new(Decimal::from(1550)));
+    .with_stop_loss(Price::try_new(Decimal::from(1550)).unwrap());
     let res_sl = validate_sizing_request(&req_bad_sl, &budget);
     assert!(matches!(
         res_sl,
@@ -285,9 +285,9 @@ fn test_opentelemetry_w3c_traceparent_propagation() {
     let trace_ctx = TraceContext::new(trace_id, span_id, TraceContext::SAMPLED);
 
     let req = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "TCS"),
+        InstrumentId::try_new(Exchange::Nse, "TCS").unwrap(),
         OrderSide::Buy,
-        OrderType::Limit(Price::new(Decimal::from(3500))),
+        OrderType::Limit(Price::try_new(Decimal::from(3500)).unwrap()),
         Quantity::from_u64(10),
         "trace-algo",
     )
@@ -307,14 +307,14 @@ fn test_opentelemetry_w3c_traceparent_propagation() {
 #[test]
 fn test_suggest_freeze_slices_exact_arithmetic() {
     let mut engine = RiskEngine::default();
-    let inst = InstrumentId::new(Exchange::Nse, "NIFTY");
+    let inst = InstrumentId::try_new(Exchange::Nse, "NIFTY").unwrap();
     engine
         .limits
         .freeze_limits
         .insert(inst.clone(), Quantity::from_u64(1800));
 
     // Case 1: No freeze limit configured for scrip -> returns 1
-    let other_inst = InstrumentId::new(Exchange::Nse, "SBIN");
+    let other_inst = InstrumentId::try_new(Exchange::Nse, "SBIN").unwrap();
     assert_eq!(
         engine.suggest_freeze_slices(&other_inst, Quantity::from_u64(50000)),
         1
@@ -364,7 +364,7 @@ fn test_suggest_freeze_slices_exact_arithmetic() {
 #[test]
 fn test_check_position_concentration_boundaries() {
     let mut engine = RiskEngine::default();
-    let inst = InstrumentId::new(Exchange::Nse, "INFY");
+    let inst = InstrumentId::try_new(Exchange::Nse, "INFY").unwrap();
 
     // No limit configured -> Ok
     assert!(
@@ -452,7 +452,7 @@ fn test_check_mis_leverage_boundaries() {
 #[test]
 fn test_check_order_fast_all_refusal_variants() {
     let now = Utc::now();
-    let inst = InstrumentId::new(Exchange::Nse, "TCS");
+    let inst = InstrumentId::try_new(Exchange::Nse, "TCS").unwrap();
     let mut engine = RiskEngine::default();
     engine.register_algo("fast-algo");
 
@@ -518,11 +518,12 @@ fn test_check_order_fast_all_refusal_variants() {
     let mut pb_engine = engine.clone();
     pb_engine.price_bands.insert(
         inst.clone(),
-        PriceBand::new(
-            Price::new(Decimal::from(3000)),
-            Price::new(Decimal::from(3500)),
-            Price::new(Decimal::from(3250)),
-        ),
+        PriceBand::try_new(
+            Price::try_new(Decimal::from(3000)).unwrap(),
+            Price::try_new(Decimal::from(3500)).unwrap(),
+            Price::try_new(Decimal::from(3250)).unwrap(),
+        )
+        .unwrap(),
     );
     assert!(matches!(
         pb_engine.check_order_fast(
@@ -530,7 +531,7 @@ fn test_check_order_fast_all_refusal_variants() {
             &inst,
             OrderSide::Buy,
             Quantity::from_u64(10),
-            Some(Price::new(Decimal::from(4000))),
+            Some(Price::try_new(Decimal::from(4000)).unwrap()),
             now
         ),
         Err(RiskRefusal::PriceBandViolation { .. })
@@ -578,7 +579,7 @@ fn test_check_order_fast_all_refusal_variants() {
             &inst,
             OrderSide::Buy,
             Quantity::from_u64(100),
-            Some(Price::new(Decimal::from(1500))), // Notional: 150,000 > 100,000
+            Some(Price::try_new(Decimal::from(1500)).unwrap()), // Notional: 150,000 > 100,000
             now
         ),
         Err(RiskRefusal::MaxNotionalExceeded { .. })

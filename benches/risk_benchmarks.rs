@@ -10,7 +10,7 @@ use tantra_risk::{OtrConfig, RiskEngine, RiskLimits};
 
 fn make_order_request(algo_id: &str, symbol: &str, qty: u64) -> OrderRequest {
     OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, symbol),
+        InstrumentId::try_new(Exchange::Nse, symbol).unwrap(),
         OrderSide::Buy,
         OrderType::Market,
         Quantity::from_u64(qty),
@@ -37,12 +37,16 @@ fn bench_check_order_basic(c: &mut Criterion) {
 fn bench_check_order_with_price_band(c: &mut Criterion) {
     let mut engine = RiskEngine::default();
     engine.register_algo("bench-algo");
-    let band = tantra_core::PriceBand::new(
+    let band = tantra_core::PriceBand::try_new(
         Price::from_rupees("2000.00").unwrap(),
         Price::from_rupees("3000.00").unwrap(),
         Price::from_rupees("2500.00").unwrap(),
+    )
+    .unwrap();
+    engine.set_price_band(
+        InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap(),
+        band,
     );
-    engine.set_price_band(InstrumentId::new(Exchange::Nse, "RELIANCE"), band);
     let req = make_order_request("bench-algo", "RELIANCE", 10);
     let now = Utc::now();
 
@@ -73,7 +77,7 @@ fn bench_check_order_with_otr(c: &mut Criterion) {
 fn bench_check_order_with_freeze_limit(c: &mut Criterion) {
     let mut limits = RiskLimits::default();
     limits.freeze_limits.insert(
-        InstrumentId::new(Exchange::Nse, "NIFTY"),
+        InstrumentId::try_new(Exchange::Nse, "NIFTY").unwrap(),
         Quantity::from_u64(1800),
     );
     let mut engine = RiskEngine::new(limits, OtrConfig::default());
@@ -98,7 +102,7 @@ fn bench_check_order_with_notional_limit(c: &mut Criterion) {
     let mut engine = RiskEngine::new(limits, OtrConfig::default());
     engine.register_algo("bench-algo");
     let req = OrderRequest::new(
-        InstrumentId::new(Exchange::Nse, "RELIANCE"),
+        InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap(),
         OrderSide::Buy,
         OrderType::Limit(Price::from_rupees("3000.00").unwrap()),
         Quantity::from_u64(1000),
@@ -124,7 +128,7 @@ fn bench_check_order_fast(c: &mut Criterion) {
         b.iter(|| {
             let result = engine.check_order_fast(
                 black_box("bench-algo"),
-                black_box(&InstrumentId::new(Exchange::Nse, "RELIANCE")),
+                black_box(&InstrumentId::try_new(Exchange::Nse, "RELIANCE").unwrap()),
                 black_box(OrderSide::Buy),
                 black_box(Quantity::from_u64(10)),
                 black_box(None),
