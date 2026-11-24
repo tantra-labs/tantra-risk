@@ -6,7 +6,7 @@
 
 ## What's stubbed or hardcoded
 
-- `src/engine.rs:~395-415` (`check_decision`, `Decision::ModifyOrder` arm): only `GlobalState::ReduceOnly` is tested, then `record_cancellation` is called and the arm returns `Ok(())`.
+- `src/engine.rs:379-397` (`check_decision`, `Decision::ModifyOrder` arm): only `GlobalState::ReduceOnly` is tested, then `record_cancellation` is called and the arm returns `Ok(())`.
 - The arm performs no `GlobalState::Halted` check, no `algo_states` check, no `algo_registry` check and no `market_circuit` check.
 - The `instrument` field is discarded (`let _ = instrument`), so price band, freeze limit and notional are not re-checked on a modify that can raise price or quantity.
 
