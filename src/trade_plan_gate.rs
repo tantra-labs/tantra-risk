@@ -140,7 +140,7 @@ pub fn validate_trade_plan(
 
     // 4. Max loss per strategy.
     if let Some(max_loss) = config.max_loss {
-        if plan.risk_at_stake.amount > max_loss.amount {
+        if plan.risk_at_stake.amount() > max_loss.amount() {
             return Err(RiskRefusal::MaxLossExceeded {
                 risk_at_stake: plan.risk_at_stake,
                 max_loss,

@@ -155,7 +155,10 @@ impl fmt::Display for SizingRiskRefusal {
                 write!(
                     f,
                     "Aggregate portfolio risk cap exceeded: requested {requested_risk_pct} > max {max_portfolio_risk_pct} (risk at stake: {} {}, equity: {} {})",
-                    risk_at_stake.amount, risk_at_stake.currency, equity.amount, equity.currency
+                    risk_at_stake.amount(),
+                    risk_at_stake.currency(),
+                    equity.amount(),
+                    equity.currency()
                 )
             }
             Self::NonLotMultiple { quantity, lot_size } => {
@@ -197,11 +200,12 @@ impl fmt::Display for SizingRiskRefusal {
                 write!(
                     f,
                     "Maximum position notional exceeded: requested {} > max {}",
-                    requested.amount, limit.amount
+                    requested.amount(),
+                    limit.amount()
                 )
             }
             Self::InvalidEquity { equity, reason } => {
-                write!(f, "Invalid account equity: {} ({reason})", equity.amount)
+                write!(f, "Invalid account equity: {} ({reason})", equity.amount())
             }
             Self::InvalidEntryPrice { price } => {
                 write!(f, "Invalid entry price: {price} must be strictly positive")
@@ -296,7 +300,7 @@ pub fn validate_sizing_request(
     }
 
     // 2. Sanity: Equity strictly positive
-    let equity = budget.equity.amount.min(request.account_equity.amount);
+    let equity = budget.equity.amount().min(request.account_equity.amount());
     if equity <= Decimal::ZERO {
         return Err(RiskError::SizingRefusal(SizingRiskRefusal::InvalidEquity {
             equity: budget.equity,
@@ -353,7 +357,7 @@ pub fn validate_sizing_request(
                     SizingRiskRefusal::PortfolioRiskCapExceeded {
                         requested_risk_pct: *risk_pct,
                         max_portfolio_risk_pct: max_risk_pct,
-                        risk_at_stake: Money::new(equity * *risk_pct, budget.equity.currency),
+                        risk_at_stake: Money::new(equity * *risk_pct, budget.equity.currency()),
                         equity: budget.equity,
                     },
                 ));
@@ -372,7 +376,7 @@ pub fn validate_sizing_request(
 
     // 6. Enforce aggregate portfolio risk cap on actual risk at stake
     if let Some(max_risk_pct) = max_portfolio_risk {
-        let actual_risk_pct = sizing_result.risk_at_stake.amount / equity;
+        let actual_risk_pct = sizing_result.risk_at_stake.amount() / equity;
         if actual_risk_pct > max_risk_pct {
             return Err(RiskError::SizingRefusal(
                 SizingRiskRefusal::PortfolioRiskCapExceeded {
@@ -392,7 +396,7 @@ pub fn validate_sizing_request(
     let max_weight = budget.max_weight_pct.or(request.risk_budget.max_weight_pct);
     if let Some(max_weight_pct) = max_weight {
         if equity > Decimal::ZERO {
-            let weight_pct = sizing_result.allocated_notional.amount / equity;
+            let weight_pct = sizing_result.allocated_notional.amount() / equity;
             if weight_pct > max_weight_pct {
                 return Err(RiskError::SizingRefusal(
                     SizingRiskRefusal::MaxWeightExceeded {
@@ -487,7 +491,7 @@ pub fn validate_sizing_request(
         .max_position_notional
         .or(request.risk_budget.max_position_notional)
     {
-        if sizing_result.allocated_notional.amount > max_notional.amount {
+        if sizing_result.allocated_notional.amount() > max_notional.amount() {
             return Err(RiskError::SizingRefusal(
                 SizingRiskRefusal::MaxNotionalExceeded {
                     requested: sizing_result.allocated_notional,

@@ -365,7 +365,10 @@ impl fmt::Display for RiskRefusal {
             } => write!(
                 f,
                 "Planned max loss {} {} exceeds configured max loss {} {}",
-                risk_at_stake.amount, risk_at_stake.currency, max_loss.amount, max_loss.currency
+                risk_at_stake.amount(),
+                risk_at_stake.currency(),
+                max_loss.amount(),
+                max_loss.currency()
             ),
             Self::StopWideningDenied {
                 current_stop,
