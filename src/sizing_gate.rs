@@ -299,7 +299,19 @@ pub fn validate_sizing_request(
         ));
     }
 
-    // 2. Sanity: Equity strictly positive
+    // 2. Sanity: budget and account equity share a currency (fail closed
+    // rather than comparing bare amounts across currencies), and equity is
+    // strictly positive.
+    if budget.equity.currency() != request.account_equity.currency() {
+        return Err(RiskError::SizingRefusal(SizingRiskRefusal::InvalidEquity {
+            equity: request.account_equity,
+            reason: format!(
+                "currency mismatch: budget {} vs account {}",
+                budget.equity.currency(),
+                request.account_equity.currency()
+            ),
+        }));
+    }
     let equity = budget.equity.amount().min(request.account_equity.amount());
     if equity <= Decimal::ZERO {
         return Err(RiskError::SizingRefusal(SizingRiskRefusal::InvalidEquity {
