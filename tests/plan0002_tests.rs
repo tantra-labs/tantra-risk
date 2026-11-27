@@ -14,7 +14,7 @@ use tantra_core::{
 };
 use tantra_risk::{
     AlgoState, GlobalState, OtrConfig, RiskEngine, RiskError, RiskLimits, RiskRefusal,
-    SizingRiskRefusal,
+    RiskStrictness, SizingRiskRefusal,
 };
 
 fn nse(symbol: &str) -> InstrumentId {
@@ -332,12 +332,14 @@ fn price_collar_skipped_without_band_or_on_fast_path_parity() {
     let now = Utc::now();
     let inst = nse("RELIANCE");
 
-    // No band -> no reference price -> collar is not applied.
+    // No band -> no reference price -> collar is not applied under Permissive.
+    engine.limits.strictness = RiskStrictness::Permissive;
     assert!(
         engine
             .check_order(&market_order(inst.clone(), OrderSide::Buy, "algo-1"), now)
             .is_ok()
     );
+    engine.limits.strictness = RiskStrictness::FailClosed;
 
     // With a band beyond the collar, the fast path enforces the same collar.
     engine.set_price_band(

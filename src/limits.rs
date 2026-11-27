@@ -15,6 +15,26 @@ pub struct OrderRateLimit {
     pub window_ms: u64,
 }
 
+/// How the engine treats missing or stale reference data (bands, freeze limits, equity).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskStrictness {
+    /// Live default: a configured rule whose reference data is missing or stale
+    /// refuses the order instead of being skipped.
+    #[default]
+    FailClosed,
+    /// Opt-in for research, backtest, and paper trading: rules whose reference
+    /// data is missing are skipped (pre-gap-0006 behaviour). Never use live.
+    Permissive,
+}
+
+impl RiskStrictness {
+    /// `true` for [`RiskStrictness::FailClosed`].
+    pub const fn is_fail_closed(&self) -> bool {
+        matches!(self, Self::FailClosed)
+    }
+}
+
 /// Hard risk limits applied synchronously to all outgoing orders and decisions.
 ///
 /// This struct merges rules from `tantra-ledger::RiskLimits` (deprecated)
@@ -75,11 +95,24 @@ pub struct RiskLimits {
     /// E.g., 5.0 means max 5x leverage on gross exposure vs equity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_mis_leverage: Option<Decimal>,
+
+    /// Missing-reference-data policy. Defaults to fail-closed.
+    #[serde(default, skip_serializing_if = "RiskStrictness::is_fail_closed")]
+    pub strictness: RiskStrictness,
+
+    /// Maximum age in milliseconds of a price band's `as_of` relative to the
+    /// evaluation time (fail-closed only). `None` = no staleness rule;
+    /// `Some(0)` is invalid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_reference_age_ms: Option<u64>,
 }
 
 impl RiskLimits {
     /// Validate structural limits sanity.
     pub fn is_valid(&self) -> bool {
+        if self.max_reference_age_ms == Some(0) {
+            return false;
+        }
         if let Some(notional) = self.max_notional_per_order {
             if notional <= Decimal::ZERO {
                 return false;

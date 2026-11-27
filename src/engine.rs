@@ -20,7 +20,7 @@ use crate::trade_plan_gate::{StopProtectionConfig, validate_stop_update, validat
 use crate::algo_registry::AlgoIdRegistry;
 use crate::limits::RiskLimits;
 use crate::otr::{OtrConfig, OtrTracker};
-use crate::refusal::RiskRefusal;
+use crate::refusal::{ReferenceField, RiskRefusal};
 use crate::state::{AlgoState, GlobalState, MarketCircuitHalt};
 
 /// Synchronous, deterministic risk engine.
@@ -58,6 +58,9 @@ pub struct RiskEngine {
     pub stop_protection: StopProtectionConfig,
 }
 
+/// Fail-closed engine with default (empty) limits; not for live use. Build live
+/// engines with [`RiskEngine::new`] from validated [`RiskLimits`], or use
+/// [`RiskEngine::unconfigured`] for a placeholder that refuses every order.
 impl Default for RiskEngine {
     fn default() -> Self {
         Self {
@@ -100,6 +103,17 @@ impl RiskEngine {
             daily_loss: Decimal::ZERO,
             stop_protection: StopProtectionConfig::default(),
         }
+    }
+
+    /// Placeholder engine that refuses every order (`GlobalHalted`) until it is
+    /// replaced by one built with [`RiskEngine::new`] from validated limits.
+    pub fn unconfigured() -> Self {
+        let mut engine = Self::default();
+        engine.halt_global(
+            "risk engine unconfigured: build with RiskEngine::new(validated RiskLimits)",
+            DateTime::<Utc>::UNIX_EPOCH,
+        );
+        engine
     }
 
     /// Configure stop-protection validation parameters for trade plans.
@@ -507,6 +521,162 @@ impl RiskEngine {
         result
     }
 
+    /// Shared steps 4-6 of both order pipelines: staleness, price band, market
+    /// collar, max quantity, freeze limit and max notional.
+    ///
+    /// Under [`RiskStrictness::FailClosed`] a configured rule whose reference
+    /// data is missing (or stale) refuses the order; under `Permissive` such
+    /// rules are skipped. The approve path performs only map lookups and
+    /// comparisons; allocation happens only when a refusal is built.
+    fn check_reference_rules(
+        &self,
+        instrument: &InstrumentId,
+        side: OrderSide,
+        quantity: Quantity,
+        limit_price: Option<Price>,
+        now: DateTime<Utc>,
+    ) -> Result<(), RiskRefusal> {
+        let strict = self.limits.strictness.is_fail_closed();
+        let band = self.price_bands.get(instrument);
+
+        // 4.0 Reference staleness (fail-closed only)
+        if strict {
+            if let (Some(band), Some(max_age_ms)) = (band, self.limits.max_reference_age_ms) {
+                let max_age = chrono::Duration::try_milliseconds(
+                    i64::try_from(max_age_ms).unwrap_or(i64::MAX),
+                )
+                .unwrap_or(chrono::Duration::MAX);
+                let stale = match band.as_of() {
+                    None => true,
+                    Some(as_of) => now - as_of > max_age,
+                };
+                if stale {
+                    return Err(RiskRefusal::StaleReferenceData {
+                        instrument: instrument.clone(),
+                        as_of: band.as_of(),
+                        max_age_ms,
+                    });
+                }
+            }
+        }
+
+        // 4. Circuit Limits & Price Band Check
+        if let (Some(band), Some(price)) = (band, limit_price) {
+            if !band.contains(price) {
+                return Err(RiskRefusal::PriceBandViolation { price, band: *band });
+            }
+        }
+
+        // 4.5 Market-Order Price Collar Check
+        if limit_price.is_none() {
+            if let Some(collar_bps) = self.limits.price_collar_bps {
+                match band {
+                    None if strict => {
+                        return Err(RiskRefusal::MissingReferenceData {
+                            instrument: Some(instrument.clone()),
+                            field: ReferenceField::PriceBand,
+                        });
+                    }
+                    None => {}
+                    Some(band) => {
+                        let reference = band.reference_price().value();
+                        if reference > Decimal::ZERO {
+                            let collar_frac = Decimal::from(collar_bps) / Decimal::from(10_000);
+                            let (implied_price, in_collar) = match side {
+                                // A market BUY could fill as high as the band's upper edge.
+                                OrderSide::Buy => (
+                                    band.upper(),
+                                    band.upper().value()
+                                        <= reference * (Decimal::ONE + collar_frac),
+                                ),
+                                // A market SELL could fill as low as the band's lower edge.
+                                OrderSide::Sell => (
+                                    band.lower(),
+                                    band.lower().value()
+                                        >= reference * (Decimal::ONE - collar_frac),
+                                ),
+                            };
+                            if !in_collar {
+                                return Err(RiskRefusal::PriceCollarViolation {
+                                    instrument: instrument.clone(),
+                                    implied_price,
+                                    reference_price: band.reference_price(),
+                                    collar_bps,
+                                });
+                            }
+                        } else if strict {
+                            // A zero reference is a degenerate band: nothing to collar against.
+                            return Err(RiskRefusal::MissingReferenceData {
+                                instrument: Some(instrument.clone()),
+                                field: ReferenceField::ReferencePrice,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Hard Maximum Quantity Check
+        if let Some(max_qty) = self.limits.max_quantity_per_order {
+            if quantity.value() > max_qty.value() {
+                return Err(RiskRefusal::MaxQuantityExceeded {
+                    requested: quantity,
+                    limit: max_qty,
+                });
+            }
+        }
+
+        // 5.5 Exchange Freeze Limit Check (per-scrip quantity ceiling)
+        match self.limits.freeze_limits.get(instrument) {
+            Some(freeze_qty) => {
+                if quantity.value() > freeze_qty.value() {
+                    return Err(RiskRefusal::FreezeLimitExceeded {
+                        instrument: instrument.clone(),
+                        requested: quantity,
+                        limit: *freeze_qty,
+                    });
+                }
+            }
+            None => {
+                if strict
+                    && matches!(
+                        instrument.exchange(),
+                        Exchange::Nfo | Exchange::Mcx | Exchange::Cds
+                    )
+                {
+                    return Err(RiskRefusal::MissingReferenceData {
+                        instrument: Some(instrument.clone()),
+                        field: ReferenceField::FreezeLimit,
+                    });
+                }
+            }
+        }
+
+        // 6. Hard Maximum Notional Check
+        if let Some(max_notional) = self.limits.max_notional_per_order {
+            let eval_price = match (limit_price, band) {
+                (Some(p), _) => p,
+                (None, Some(b)) => b.reference_price(),
+                (None, None) if strict => {
+                    return Err(RiskRefusal::MissingReferenceData {
+                        instrument: Some(instrument.clone()),
+                        field: ReferenceField::ReferencePrice,
+                    });
+                }
+                (None, None) => Price::ZERO,
+            };
+            let notional = eval_price.value() * quantity.value();
+            if notional > max_notional {
+                return Err(RiskRefusal::MaxNotionalExceeded {
+                    requested: notional,
+                    limit: max_notional,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     /// Internal evaluation checks for evaluate_core.
     fn evaluate_core_checks(
         &mut self,
@@ -676,97 +846,11 @@ impl RiskEngine {
             return Err(r);
         }
 
-        // 4. Circuit Limits & Price Band Check
-        if let Some(band) = self.price_bands.get(instrument) {
-            if let Some(price) = limit_price {
-                if !band.contains(price) {
-                    let r = RiskRefusal::PriceBandViolation { price, band: *band };
-                    self.record_refusal(&r);
-                    return Err(r);
-                }
-            }
-        }
-
-        // 4.5 Market-Order Price Collar Check
-        if limit_price.is_none() {
-            if let Some(collar_bps) = self.limits.price_collar_bps {
-                if let Some(band) = self.price_bands.get(instrument) {
-                    let reference = band.reference_price().value();
-                    // A zero reference is a degenerate band; there is nothing to
-                    // collar against, so the check is skipped.
-                    if reference > Decimal::ZERO {
-                        let collar_frac = Decimal::from(collar_bps) / Decimal::from(10_000);
-                        let (implied_price, in_collar) = match side {
-                            // A market BUY could fill as high as the band's upper edge.
-                            OrderSide::Buy => (
-                                band.upper(),
-                                band.upper().value() <= reference * (Decimal::ONE + collar_frac),
-                            ),
-                            // A market SELL could fill as low as the band's lower edge.
-                            OrderSide::Sell => (
-                                band.lower(),
-                                band.lower().value() >= reference * (Decimal::ONE - collar_frac),
-                            ),
-                        };
-                        if !in_collar {
-                            let r = RiskRefusal::PriceCollarViolation {
-                                instrument: instrument.clone(),
-                                implied_price,
-                                reference_price: band.reference_price(),
-                                collar_bps,
-                            };
-                            self.record_refusal(&r);
-                            return Err(r);
-                        }
-                    }
-                }
-            }
-        }
-
-        // 5. Hard Maximum Quantity Check
-        if let Some(max_qty) = self.limits.max_quantity_per_order {
-            if quantity.value() > max_qty.value() {
-                let r = RiskRefusal::MaxQuantityExceeded {
-                    requested: quantity,
-                    limit: max_qty,
-                };
-                self.record_refusal(&r);
-                return Err(r);
-            }
-        }
-
-        // 5.5 Exchange Freeze Limit Check (per-scrip quantity ceiling)
-        if let Some(freeze_qty) = self.limits.freeze_limits.get(instrument) {
-            if quantity.value() > freeze_qty.value() {
-                let r = RiskRefusal::FreezeLimitExceeded {
-                    instrument: instrument.clone(),
-                    requested: quantity,
-                    limit: *freeze_qty,
-                };
-                self.record_refusal(&r);
-                return Err(r);
-            }
-        }
-
-        // 6. Hard Maximum Notional Check
-        if let Some(max_notional) = self.limits.max_notional_per_order {
-            let eval_price = limit_price
-                .or_else(|| {
-                    self.price_bands
-                        .get(instrument)
-                        .map(|b| b.reference_price())
-                })
-                .unwrap_or(Price::ZERO);
-
-            let notional = eval_price.value() * quantity.value();
-            if notional > max_notional {
-                let r = RiskRefusal::MaxNotionalExceeded {
-                    requested: notional,
-                    limit: max_notional,
-                };
-                self.record_refusal(&r);
-                return Err(r);
-            }
+        // 4-6. Reference-data rules: staleness, price band, market collar,
+        //      max quantity, freeze limit, max notional (shared by both pipelines).
+        if let Err(r) = self.check_reference_rules(instrument, side, quantity, limit_price, now) {
+            self.record_refusal(&r);
+            return Err(r);
         }
 
         // 7. Maximum Daily Loss Check
@@ -1024,97 +1108,11 @@ impl RiskEngine {
             return Err(r);
         }
 
-        // 4. Circuit Limits & Price Band Check (get() - no allocation)
-        if let Some(band) = self.price_bands.get(instrument) {
-            if let Some(price) = limit_price {
-                if !band.contains(price) {
-                    let r = RiskRefusal::PriceBandViolation { price, band: *band };
-                    self.record_refusal(&r);
-                    return Err(r);
-                }
-            }
-        }
-
-        // 4.5 Market-Order Price Collar Check (parity with evaluate_core_checks)
-        if limit_price.is_none() {
-            if let Some(collar_bps) = self.limits.price_collar_bps {
-                if let Some(band) = self.price_bands.get(instrument) {
-                    let reference = band.reference_price().value();
-                    // A zero reference is a degenerate band; there is nothing to
-                    // collar against, so the check is skipped.
-                    if reference > Decimal::ZERO {
-                        let collar_frac = Decimal::from(collar_bps) / Decimal::from(10_000);
-                        let (implied_price, in_collar) = match side {
-                            // A market BUY could fill as high as the band's upper edge.
-                            OrderSide::Buy => (
-                                band.upper(),
-                                band.upper().value() <= reference * (Decimal::ONE + collar_frac),
-                            ),
-                            // A market SELL could fill as low as the band's lower edge.
-                            OrderSide::Sell => (
-                                band.lower(),
-                                band.lower().value() >= reference * (Decimal::ONE - collar_frac),
-                            ),
-                        };
-                        if !in_collar {
-                            let r = RiskRefusal::PriceCollarViolation {
-                                instrument: instrument.clone(),
-                                implied_price,
-                                reference_price: band.reference_price(),
-                                collar_bps,
-                            };
-                            self.record_refusal(&r);
-                            return Err(r);
-                        }
-                    }
-                }
-            }
-        }
-
-        // 5. Hard Maximum Quantity Check
-        if let Some(max_qty) = self.limits.max_quantity_per_order {
-            if quantity.value() > max_qty.value() {
-                let r = RiskRefusal::MaxQuantityExceeded {
-                    requested: quantity,
-                    limit: max_qty,
-                };
-                self.record_refusal(&r);
-                return Err(r);
-            }
-        }
-
-        // 5.5 Exchange Freeze Limit Check (get() - no allocation)
-        if let Some(freeze_qty) = self.limits.freeze_limits.get(instrument) {
-            if quantity.value() > freeze_qty.value() {
-                let r = RiskRefusal::FreezeLimitExceeded {
-                    instrument: instrument.clone(),
-                    requested: quantity,
-                    limit: *freeze_qty,
-                };
-                self.record_refusal(&r);
-                return Err(r);
-            }
-        }
-
-        // 6. Hard Maximum Notional Check
-        if let Some(max_notional) = self.limits.max_notional_per_order {
-            let eval_price = limit_price
-                .or_else(|| {
-                    self.price_bands
-                        .get(instrument)
-                        .map(|b| b.reference_price())
-                })
-                .unwrap_or(Price::ZERO);
-
-            let notional = eval_price.value() * quantity.value();
-            if notional > max_notional {
-                let r = RiskRefusal::MaxNotionalExceeded {
-                    requested: notional,
-                    limit: max_notional,
-                };
-                self.record_refusal(&r);
-                return Err(r);
-            }
+        // 4-6. Reference-data rules: staleness, price band, market collar,
+        //      max quantity, freeze limit, max notional (shared by both pipelines).
+        if let Err(r) = self.check_reference_rules(instrument, side, quantity, limit_price, now) {
+            self.record_refusal(&r);
+            return Err(r);
         }
 
         // 7. Maximum Daily Loss Check
@@ -1180,7 +1178,14 @@ impl RiskEngine {
         total_equity: Decimal,
     ) -> Result<(), RiskRefusal> {
         if let Some(max_pct) = self.limits.max_position_concentration_pct {
-            if total_equity > Decimal::ZERO {
+            if total_equity <= Decimal::ZERO {
+                if self.limits.strictness.is_fail_closed() {
+                    return Err(RiskRefusal::MissingReferenceData {
+                        instrument: Some(instrument.clone()),
+                        field: ReferenceField::TotalEquity,
+                    });
+                }
+            } else {
                 let concentration = (position_value / total_equity) * Decimal::from(100);
                 if concentration > max_pct {
                     let r = RiskRefusal::PositionConcentrationExceeded {
@@ -1225,7 +1230,14 @@ impl RiskEngine {
         total_equity: Decimal,
     ) -> Result<(), RiskRefusal> {
         if let Some(max_leverage) = self.limits.max_mis_leverage {
-            if total_equity > Decimal::ZERO {
+            if total_equity <= Decimal::ZERO {
+                if self.limits.strictness.is_fail_closed() {
+                    return Err(RiskRefusal::MissingReferenceData {
+                        instrument: None,
+                        field: ReferenceField::TotalEquity,
+                    });
+                }
+            } else {
                 let leverage = gross_exposure / total_equity;
                 if leverage > max_leverage {
                     let r = RiskRefusal::MisLeverageExceeded {

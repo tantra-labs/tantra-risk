@@ -212,6 +212,38 @@ pub enum RiskRefusal {
         /// Description of failure
         error: String,
     },
+
+    /// Reference data required by a configured rule is missing (fail-closed).
+    MissingReferenceData {
+        /// Instrument concerned, when the rule is instrument-scoped
+        instrument: Option<InstrumentId>,
+        /// Which reference datum is missing
+        field: ReferenceField,
+    },
+
+    /// The instrument's price band is older than the configured maximum age.
+    StaleReferenceData {
+        /// Instrument whose reference data is stale
+        instrument: InstrumentId,
+        /// Timestamp of the band, `None` if it carries no timestamp
+        as_of: Option<DateTime<Utc>>,
+        /// Configured maximum age in milliseconds
+        max_age_ms: u64,
+    },
+}
+
+/// Reference datum whose absence causes a fail-closed refusal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReferenceField {
+    /// Scrip price band / circuit limits.
+    PriceBand,
+    /// Reference (previous close) price, absent or zero.
+    ReferencePrice,
+    /// Exchange single-order freeze limit for a derivatives instrument.
+    FreezeLimit,
+    /// Total portfolio equity (non-positive or unavailable).
+    TotalEquity,
 }
 
 impl fmt::Display for RiskRefusal {
@@ -378,6 +410,24 @@ impl fmt::Display for RiskRefusal {
                 "Trailing stop may not widen: new stop {new_stop} loosens current stop {current_stop}"
             ),
             Self::InvalidOrder { error } => write!(f, "Invalid order: {error}"),
+            Self::MissingReferenceData { instrument, field } => match instrument {
+                Some(i) => write!(f, "Missing reference data for {i}: {field:?}"),
+                None => write!(f, "Missing reference data: {field:?}"),
+            },
+            Self::StaleReferenceData {
+                instrument,
+                as_of,
+                max_age_ms,
+            } => match as_of {
+                Some(t) => write!(
+                    f,
+                    "Stale reference data for {instrument}: as of {t}, max age {max_age_ms} ms"
+                ),
+                None => write!(
+                    f,
+                    "Stale reference data for {instrument}: untimestamped, max age {max_age_ms} ms"
+                ),
+            },
         }
     }
 }
@@ -411,6 +461,8 @@ impl RiskRefusal {
             Self::MaxLossExceeded { .. } => "max_loss_exceeded",
             Self::StopWideningDenied { .. } => "stop_widening_denied",
             Self::InvalidOrder { .. } => "invalid_order",
+            Self::MissingReferenceData { .. } => "missing_reference_data",
+            Self::StaleReferenceData { .. } => "stale_reference_data",
         }
     }
 }

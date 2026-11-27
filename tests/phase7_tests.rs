@@ -11,7 +11,8 @@ use tantra_core::{
     PositionSizingRequest, Price, PriceBand, Quantity, RiskBudget, SizingMethod, TraceContext,
 };
 use tantra_risk::{
-    RiskEngine, RiskRefusal, SizingRiskRefusal, global_metrics, validate_sizing_request,
+    RiskEngine, RiskRefusal, RiskStrictness, SizingRiskRefusal, global_metrics,
+    validate_sizing_request,
 };
 
 // ============================================================================
@@ -376,12 +377,19 @@ fn test_check_position_concentration_boundaries() {
     // Configure 20% limit
     engine.limits.max_position_concentration_pct = Some(Decimal::from(20));
 
-    // Zero or negative equity -> Ok (avoid division by zero)
+    // Zero or negative equity -> Ok under Permissive (avoid division by zero)
+    engine.limits.strictness = RiskStrictness::Permissive;
     assert!(
         engine
             .check_position_concentration(&inst, Decimal::from(100_000), Decimal::ZERO)
             .is_ok()
     );
+    // ...but fails closed by default (gap 0006).
+    engine.limits.strictness = RiskStrictness::FailClosed;
+    assert!(matches!(
+        engine.check_position_concentration(&inst, Decimal::from(100_000), Decimal::ZERO),
+        Err(RiskRefusal::MissingReferenceData { .. })
+    ));
 
     // Exactly 20% -> Ok (200,000 / 1,000,000 * 100 = 20)
     assert!(
@@ -423,12 +431,19 @@ fn test_check_mis_leverage_boundaries() {
     // Configure 5.0x leverage ceiling
     engine.limits.max_mis_leverage = Some(Decimal::from(5));
 
-    // Zero equity -> Ok
+    // Zero equity -> Ok under Permissive
+    engine.limits.strictness = RiskStrictness::Permissive;
     assert!(
         engine
             .check_mis_leverage(Decimal::from(1_000_000), Decimal::ZERO)
             .is_ok()
     );
+    // ...but fails closed by default (gap 0006).
+    engine.limits.strictness = RiskStrictness::FailClosed;
+    assert!(matches!(
+        engine.check_mis_leverage(Decimal::from(1_000_000), Decimal::ZERO),
+        Err(RiskRefusal::MissingReferenceData { .. })
+    ));
 
     // Exactly 5.0x -> Ok (5,000,000 / 1,000,000 = 5.0)
     assert!(
