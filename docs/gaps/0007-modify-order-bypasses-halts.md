@@ -27,5 +27,5 @@ During a platform kill-switch or after an OTR auto-halt, an AI `Decision::Modify
 ## Related
 
 - Root gap 0013 (single, fail-closed gate).
-- [0006](0006-fail-closed-reference-data.md) (modify re-check needs reference data to fail closed); [0011](0011-encapsulated-state-and-operator-audit.md).
+- Closed 0006 (`9bfb3c2`; modify re-check needs reference data to fail closed); [0011](0011-encapsulated-state-and-operator-audit.md).
 - tantra-core `Decision::ModifyOrder` shape (see tantra-core plan 0006 R5 for id typing).

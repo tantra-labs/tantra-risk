@@ -17,7 +17,7 @@ Non-goals: merging the two check pipelines and the typed `Result<_, String>` reg
 
 | Gap | Title | Kind | Severity |
 |---|---|---|---|
-| [0006](../gaps/0006-fail-closed-reference-data.md) | Missing reference data fails open | design-flaw | high |
+| 0006 (closed `9bfb3c2`) | Missing reference data fails open | design-flaw | high |
 | [0007](../gaps/0007-modify-order-bypasses-halts.md) | `ModifyOrder` bypasses halts, registry and circuit checks | design-flaw | high |
 | [0008](../gaps/0008-bounded-rate-windows.md) | Unbounded `order_history`; O(n) OTR window scans | design-flaw | high |
 | [0009](../gaps/0009-trading-day-rollover.md) | No trading-day rollover; sticky global daily-loss halt | design-flaw | high |

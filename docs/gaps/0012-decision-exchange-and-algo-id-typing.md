@@ -6,7 +6,7 @@
 
 ## What's stubbed or hardcoded
 
-- `src/engine.rs:~376`: `InstrumentId::new(Exchange::Nse, symbol.clone())` for every `Decision::PlaceOrder`. Freeze and band maps are keyed by `InstrumentId`, so BSE / NFO / MCX decisions look up the wrong key and fall into the fail-open path of [0006](0006-fail-closed-reference-data.md).
+- `src/engine.rs:~376`: `InstrumentId::new(Exchange::Nse, symbol.clone())` for every `Decision::PlaceOrder`. Freeze and band maps are keyed by `InstrumentId`, so BSE / NFO / MCX decisions look up the wrong key and skip the exchange-specific rules of closed gap 0006 (`9bfb3c2`): e.g. an NFO decision keyed as NSE escapes the FailClosed F&O freeze-entry requirement.
 - Algo ids are `String` keys everywhere (`src/engine.rs:36-48`, `src/algo_registry.rs:~22`).
 - `AlgoIdRegistry::is_registered_and_active` returns `Result<(), String>` (the typed-error item is already tracked as root plan 0019 P3.3; listed here for context).
 - `src/metrics.rs`: `algo_id` and `scrip` are Prometheus labels fed from request data (see [0013](0013-metrics-label-cardinality.md)).
@@ -27,4 +27,4 @@ An AI decision for a non-NSE symbol, or a segment-qualified one, bypasses config
 ## Related
 
 - Provider repo: `tantra-core` (Decision shape, `AlgoId` newtype); tantra-core plan 0006 R5.
-- [0006](0006-fail-closed-reference-data.md), [0007](0007-modify-order-bypasses-halts.md), [0013](0013-metrics-label-cardinality.md).
+- Closed 0006 (`9bfb3c2`), [0007](0007-modify-order-bypasses-halts.md), [0013](0013-metrics-label-cardinality.md).

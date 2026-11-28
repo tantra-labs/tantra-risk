@@ -14,7 +14,7 @@
 
 ## Why
 
-The headline contract of the crate is unenforced: any change (including those proposed in [0006](0006-fail-closed-reference-data.md) to [0014](0014-otr-accounting-order.md)) can silently regress latency. The allocation claim is false on the `check_order` / `check_decision` path, and span creation alone costs several microseconds.
+The headline contract of the crate is unenforced: any change (including those proposed in 0006 (closed `9bfb3c2`) to [0014](0014-otr-accounting-order.md)) can silently regress latency. The allocation claim is false on the `check_order` / `check_decision` path, and span creation alone costs several microseconds.
 
 ## How to close it
 
